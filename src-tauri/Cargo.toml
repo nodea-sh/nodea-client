@@ -57,13 +57,14 @@ sysinfo = { version = "0.36.1", default-features = false, features = ["system"] 
 # (Metal GPU compute, the Accelerate framework) - gate them to macOS so
 # non-macOS builds (e.g. Linux CI) don't try to compile Apple bindings.
 [target.'cfg(target_os = "macos")'.dependencies]
-mistralrs = { version = "0.8", features = ["metal", "accelerate"] }
+# 0.9 is not published to crates.io; pin the release tag.
+mistralrs = { git = "https://github.com/EricLBuehler/mistral.rs", tag = "v0.9.5", features = ["metal", "accelerate"] }
 # Metal recommendedMaxWorkingSetSize, the GPU's memory ceiling (src/memory.rs).
 # Same version candle already links for its Metal backend.
 objc2-metal = { version = "0.3.2", features = ["MTLDevice"] }
 
 [target.'cfg(not(target_os = "macos"))'.dependencies]
-mistralrs = { version = "0.8" }
+mistralrs = { git = "https://github.com/EricLBuehler/mistral.rs", tag = "v0.9.5" }
 
 [dev-dependencies]
 tempfile = "3.8"
@@ -73,14 +74,13 @@ tokio-test = "0.4"
 default = []
 custom-protocol = ["tauri/custom-protocol"]
 
-# mistralrs-quant 0.8.1's build.rs compiles its Metal kernel sources via
-# `xcrun metal -c` twice into the same output directory, discarding the
-# first invocation's exit status entirely - see vendor/mistralrs-quant-0.8.1
-# for the fix and full explanation (the same bug was present, and patched
-# the same way, in 0.7.0). This crate has no
-# parent workspace, so the patch section lives directly here.
-[patch.crates-io]
-mistralrs-quant = { path = "vendor/mistralrs-quant-0.8.1" }
+# mistralrs-metal-compile builds the Metal kernels for mistralrs-core,
+# mistralrs-quant and mistralrs-paged-attn. The air -> metallib link can exit 0
+# while producing an essentially empty .metallib under a release build's load -
+# see vendor/mistralrs-metal-compile-0.9.5 for the verify-and-retry fix. This
+# crate has no parent workspace, so the patch section lives directly here.
+[patch."https://github.com/EricLBuehler/mistral.rs"]
+mistralrs-metal-compile = { path = "vendor/mistralrs-metal-compile-0.9.5" }
 
 # Keep debug builds small: line numbers in our crate's backtraces, no
 # debuginfo for dependencies. mistralrs/candle debuginfo grows target/ to

@@ -1,0 +1,4 @@
+[env]
+# This app ships Metal on macOS only. Without this, mistralrs builds iOS and
+# tvOS metallibs too, which we never use and which need those SDKs installed.
+MISTRALRS_METAL_PLATFORMS = "macos"

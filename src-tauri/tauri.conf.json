@@ -26,6 +26,9 @@
       "active": true,
       "targets": "all",
       "identifier": "com.getnodea.app",
+      "macOS": {
+        "minimumSystemVersion": "15.0"
+      },
       "resources": ["../LICENSE", "../NOTICE", "../THIRD_PARTY_LICENSES.md"],
       "icon": [
         "icons/32x32.png",

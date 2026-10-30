@@ -33,54 +33,54 @@ Other CI jobs in `ci.yml`: `scripts` (pytest over `scripts/tests/`),
 `licenses`, `fmt`, and `clippy`. A suite CI does not run is decorative — if you
 add one, wire it into `ci.yml` in the same PR.
 
-## mistralrs / mistralrs-quant (Metal release build)
+## mistralrs / mistralrs-metal-compile (Metal release build)
 
-`src-tauri/vendor/mistralrs-quant-0.8.1/` is a vendored, patched copy of the
-`mistralrs-quant` crate, wired in via `[patch.crates-io]` in
+`mistralrs` is a git dependency pinned to a release tag (0.9 is not published
+to crates.io). `src-tauri/vendor/mistralrs-metal-compile-<version>/` is a
+vendored, patched copy of the `mistralrs-metal-compile` crate, wired in via
+`[patch."https://github.com/EricLBuehler/mistral.rs"]` in
 `src-tauri/Cargo.toml`. This is deliberate — do not remove it or "clean up" the
 vendor directory without reading this section.
 
-**Why it's vendored:** `mistralrs-quant`'s own `build.rs` compiles the Metal
-(GPU) kernels this app needs, and on this toolchain that build script has two
-real bugs that only surface in a **production release build**
-(`npm run tauri build` / `cargo build --release`), never in `cargo test` or
-`tauri dev`:
-
-1. The `.air -> .metallib` link step passed no `--sdk`/`-std` flags, so it
-   silently targeted the wrong Metal version and dropped every kernel from the
-   output — while still exiting 0. Deterministic, not a timing issue.
-2. Independently: under a release build's heavier concurrent load, the same
-   link step's subprocess can get resource-starved and produce a near-empty
-   `.metallib` — also while exiting 0.
-
-Either one leaves the model with no working GPU code for functions it needs
-(symptom: every chat response comes back empty, with
+**Why it's vendored:** `mistralrs-metal-compile` builds the Metal (GPU) kernels
+for `mistralrs-core`, `mistralrs-quant` and `mistralrs-paged-attn`. Under a
+**production release build**'s heavier concurrent load (`npm run tauri build` /
+`cargo build --release`, never `cargo test` or `tauri dev`), its
+`.air -> .metallib` link subprocess can get resource-starved and produce a
+near-empty `.metallib` while still exiting 0. That leaves the model with no
+working GPU code (symptom: every chat response comes back empty, with
 `Error while loading function: fused_glu_float` or similar in the logs). The
-vendored copy fixes (1) directly and adds a verify-and-retry safety net for (2)
-(checks the compiled `.metallib` has a reasonable symbol count via `metal-nm`,
-retries the link, and fails the build loudly instead of shipping a broken one).
-It also skips building iOS/tvOS metallibs — this is a macOS-only app. Full
-investigation and evidence: PR #161 in the upstream `ai4all-io/nodea` repo.
+vendored copy adds a verify-and-retry safety net (checks every compiled
+`.metallib` defines kernel symbols via `metal-nm`, retries, and fails the build
+loudly instead of shipping a broken one). Full investigation and evidence: PR
+#161 in the upstream `ai4all-io/nodea` repo. A second bug that needed patching
+in 0.8 (the link step passing no `--sdk`/`-std` flags) is fixed upstream as of
+0.9.
 
-**If you bump the `mistralrs`/`mistralrs-quant` version:**
+`src-tauri/.cargo/config.toml` sets `MISTRALRS_METAL_PLATFORMS=macos` so only
+the macOS metallibs are built — this is a macOS-only app for Metal.
 
-1. Update the version in `src-tauri/Cargo.toml` (`mistralrs = "0.X"`).
-2. Pull the new version's source (temporarily remove the `[patch.crates-io]`
-   entry, `cargo build` once to fetch it into
-   `~/.cargo/registry/src/index.crates.io-*/mistralrs-quant-<version>/`, then
-   copy that directory into `src-tauri/vendor/`).
-3. Re-apply the patches to the new `build.rs` — search the old vendored
-   `build.rs` for `NODEA PATCH` comments (on the `.metal -> .air` step, the
-   `.air -> .metallib` step's `--sdk`/`-std` flags, and the verify-and-retry
-   wrapper) and port them over. Drop the iOS/tvOS `compile(...)` calls the same
-   way.
-4. Update the path in `[patch.crates-io]` to the new vendored directory.
+**macOS 15 minimum:** 0.9's candle uses `MTLResidencySet`, which does not exist
+on macOS 14, so `tauri.conf.json` sets `minimumSystemVersion` to `15.0`.
+Re-check this before any bump.
+
+**If you bump the `mistralrs` version:**
+
+1. Update the tag in both `mistralrs` entries in `src-tauri/Cargo.toml`.
+2. Copy the new tag's `mistralrs-metal-compile/` into
+   `src-tauri/vendor/mistralrs-metal-compile-<version>/`, replacing its
+   `Cargo.toml` workspace-inherited fields with concrete values from the
+   upstream workspace `Cargo.toml` (including the candle git rev).
+3. Re-apply the `NODEA PATCH` changes in `src/lib.rs` (the
+   `compile_platform_verified` wrapper and `metallib_has_symbols`) and update
+   `PATCHES.md`.
+4. Update the path in the `[patch."https://github.com/EricLBuehler/mistral.rs"]`
+   section.
 5. **Verify on a real production build before merging** — `npm run tauri build`,
    then run an actual chat message through the built `.app`. `cargo test` and
-   `tauri dev` cannot catch either bug.
-6. If a future version fixes `build.rs` upstream, confirm with a real
-   release-build test first, then the vendor directory and `[patch.crates-io]`
-   entry can be deleted.
+   `tauri dev` cannot catch the bug.
+6. If a future version fixes this upstream, confirm with a real release-build
+   test first, then the vendor directory and patch entry can be deleted.
 
 ## No extra documentation by default
 

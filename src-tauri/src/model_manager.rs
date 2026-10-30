@@ -2,11 +2,13 @@ use futures::StreamExt;
 use indexmap::IndexMap;
 use mistralrs::core::{ReasoningEffort, RequestMessage};
 use mistralrs::{
+    AdapterSelection, CustomLogitsProcessor, MessageContent, RequestLike, WebSearchOptions,
+};
+use mistralrs::{
     CalledFunction, ChatCompletionChunkResponse, ChunkChoice, Constraint, GgufModelBuilder, Model,
     RequestBuilder, Response, SamplingParams, StopTokens, TextMessageRole, Tool, ToolCallResponse,
     ToolCallType, ToolChoice,
 };
-use mistralrs::{CustomLogitsProcessor, MessageContent, RequestLike, WebSearchOptions};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -279,8 +281,8 @@ impl RequestLike for ReasoningRequest {
         self.inner.take_logits_processors()
     }
 
-    fn take_adapters(&mut self) -> Option<Vec<String>> {
-        self.inner.take_adapters()
+    fn take_adapter(&mut self) -> Option<AdapterSelection> {
+        self.inner.take_adapter()
     }
 
     fn return_logprobs(&self) -> bool {
@@ -614,6 +616,7 @@ fn extract_chunk_pieces(response: &Response) -> Vec<ChunkPiece> {
                  finish_reason,
                  index,
                  logprobs,
+                 ..
              }| ChunkPiece {
                 choice_index: *index,
                 text: delta.content.clone().unwrap_or_default(),
@@ -1992,8 +1995,8 @@ mod tests {
         ));
         match parsed.user_location {
             Some(mistralrs::core::WebSearchUserLocation::Approximate { approximate }) => {
-                assert_eq!(approximate.city, "Oslo");
-                assert_eq!(approximate.timezone, "Europe/Oslo");
+                assert_eq!(approximate.city.as_deref(), Some("Oslo"));
+                assert_eq!(approximate.timezone.as_deref(), Some("Europe/Oslo"));
             }
             None => panic!("expected a user location"),
         }
@@ -2141,6 +2144,7 @@ mod tests {
                         reasoning_content: None,
                     },
                     logprobs: None,
+                    stop_sequence: None,
                 })
                 .collect();
         }
@@ -2198,6 +2202,7 @@ mod tests {
                 total_time_sec: 0.0,
                 total_prompt_time_sec: 0.0,
                 total_completion_time_sec: 0.0,
+                prompt_tokens_details: None,
             });
         }
         response
@@ -2216,12 +2221,15 @@ mod tests {
                     reasoning_content: None,
                 },
                 logprobs: None,
+                stop_sequence: None,
             }],
             created: 0,
             model: "test-model".to_string(),
             system_fingerprint: "local".to_string(),
             object: "chat.completion.chunk".to_string(),
             usage: None,
+            adapter_generation: None,
+            session_id: None,
         })
     }
 
@@ -2266,6 +2274,8 @@ mod tests {
             system_fingerprint: "local".to_string(),
             object: "chat.completion.chunk".to_string(),
             usage: None,
+            adapter_generation: None,
+            session_id: None,
         });
         assert!(extract_chunk_pieces(&response).is_empty());
     }
@@ -2279,6 +2289,10 @@ mod tests {
             model: "test-model".to_string(),
             system_fingerprint: "local".to_string(),
             object: "chat.completion".to_string(),
+            adapter_generation: None,
+            agentic_tool_calls: None,
+            files: None,
+            session_id: None,
             usage: Usage {
                 completion_tokens: 0,
                 prompt_tokens: 0,
@@ -2289,6 +2303,7 @@ mod tests {
                 total_time_sec: 0.0,
                 total_prompt_time_sec: 0.0,
                 total_completion_time_sec: 0.0,
+                prompt_tokens_details: None,
             },
         });
         assert!(extract_chunk_pieces(&response).is_empty());
@@ -2317,12 +2332,17 @@ mod tests {
                         reasoning_content: None,
                     },
                     logprobs: None,
+                    stop_sequence: None,
                 })
                 .collect(),
             created: 0,
             model: "test-model".to_string(),
             system_fingerprint: "local".to_string(),
             object: "chat.completion".to_string(),
+            adapter_generation: None,
+            agentic_tool_calls: None,
+            files: None,
+            session_id: None,
             usage: Usage {
                 completion_tokens: 0,
                 prompt_tokens: 0,
@@ -2333,6 +2353,7 @@ mod tests {
                 total_time_sec: 0.0,
                 total_prompt_time_sec: 0.0,
                 total_completion_time_sec: 0.0,
+                prompt_tokens_details: None,
             },
         })
     }

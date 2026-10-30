@@ -62,14 +62,15 @@ The app is built with:
 
 ## Prerequisites
 
-- Rust 1.88+ (the vendored `mistralrs-quant` crate's minimum)
+- Rust 1.94+ (mistral.rs 0.9's minimum)
 - Node.js 20+
 - On Linux, the Tauri v1 system packages: `libgtk-3-dev libwebkit2gtk-4.0-dev
   libappindicator3-dev librsvg2-dev patchelf libssl-dev`. Ubuntu 24.04 dropped
   `libwebkit2gtk-4.0-dev`, so build on 22.04 (CI does, in a container).
 
-Supported platforms: macOS on Apple Silicon is the primary target, and its
-releases are signed and notarised. Linux (AppImage) and Windows (MSI) builds are
+Supported platforms: macOS 15 or later on Apple Silicon is the primary target,
+and its releases are signed and notarised. (mistral.rs 0.9's Metal backend uses
+APIs that do not exist on macOS 14.) Linux (AppImage) and Windows (MSI) builds are
 produced but unsigned and less tested.
 
 `protoc` is **not** a prerequisite: `src-tauri/build.rs` compiles the proto with
@@ -238,9 +239,9 @@ the crates, `license-checker` for the npm tree). The `licenses` CI job fails if
 it is stale or if a dependency brings a licence outside the allowlist in
 `src-tauri/about.toml`.
 
-`src-tauri/vendor/mistralrs-quant-0.8.1` is a **modified** copy of the MIT
-`mistralrs-quant` crate, patched to fix its Metal build. Its licence and a
-description of the changes are in that directory (`LICENSE`, `PATCHES.md`).
+`src-tauri/vendor/mistralrs-metal-compile-0.9.5` is a **modified** copy of the
+MIT `mistralrs-metal-compile` crate, patched to fix its Metal build. Its licence
+and a description of the changes are in that directory (`LICENSE`, `PATCHES.md`).
 
 Models the app downloads are not part of this software and carry their own
 licences.
