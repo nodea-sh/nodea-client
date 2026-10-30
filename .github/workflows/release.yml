@@ -100,6 +100,24 @@ jobs:
         with:
           ref: v${{ needs.version.outputs.version }}
 
+      # Decided before the long build so WINDOWS_SIGNING=required with a
+      # missing secret fails in seconds, not after the bundle is built.
+      - name: Decide the Windows signing mode
+        if: matrix.platform == 'windows'
+        shell: bash
+        env:
+          WINDOWS_SIGNING: ${{ vars.WINDOWS_SIGNING }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARTIFACT_SIGNING_ENDPOINT: ${{ vars.ARTIFACT_SIGNING_ENDPOINT }}
+          ARTIFACT_SIGNING_ACCOUNT: ${{ vars.ARTIFACT_SIGNING_ACCOUNT }}
+          ARTIFACT_SIGNING_PROFILE: ${{ vars.ARTIFACT_SIGNING_PROFILE }}
+        run: |
+          set -euo pipefail
+          MODE=$(scripts/windows_sign_config.sh mode)
+          echo "NODEA_WINDOWS_SIGNING_MODE=$MODE" >> "$GITHUB_ENV"
+          echo "Windows signing mode: $MODE"
+
       - name: Install Linux dependencies for Tauri
         if: matrix.platform == 'linux'
         run: |
@@ -368,6 +386,29 @@ jobs:
           fi
           rm -f "${NODEA_NOTARY_KEY:-}"
           echo "signing keychain and notary key removed"
+
+      # Located in bash because select_bundle.sh is shell, and `bash` inside
+      # pwsh on a Windows runner can resolve to WSL rather than Git Bash.
+      - name: Locate the MSI
+        if: matrix.platform == 'windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          MSI=$(scripts/select_bundle.sh 'msi/*.msi' src-tauri/target/release/bundle)
+          echo "NODEA_MSI=$MSI" >> "$GITHUB_ENV"
+
+      # Windows' counterpart to the macOS verify step: the first evidence of a
+      # signing problem should be this job, not a user's SmartScreen prompt.
+      # In report mode (no signing configured yet) it lists what is unsigned
+      # and warns; in enforce mode any unsigned or untimestamped file fails.
+      - name: Verify the Windows signatures
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          ./scripts/windows/verify_signatures.ps1 `
+            -Msi $env:NODEA_MSI `
+            -Mode $env:NODEA_WINDOWS_SIGNING_MODE `
+            -Publisher 'GAYOSO LLC'
 
       - name: Stage the bundle
         shell: bash
