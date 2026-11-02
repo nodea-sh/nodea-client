@@ -3,23 +3,41 @@ import { useOutletContext } from 'react-router-dom'
 import { CircleNotch, DownloadSimple, CheckCircle, CircleDashed, Broadcast, WifiSlash, Prohibit } from '@phosphor-icons/react'
 import { useAuth } from '@/contexts/AuthContext'
 import { apiClient, type TokenStatsResponse } from '@/lib/api'
-import { ThroughputChart } from '@/components/ThroughputChart'
+import { ThroughputChart, type ChartRange } from '@/components/ThroughputChart'
 import type { NodeState } from '@/hooks/useNodePhase'
 
 export function NodePage() {
   const node = useOutletContext<NodeState>()
   const { organization, accountInactive } = useAuth()
-  const [stats, setStats] = useState<TokenStatsResponse[]>([])
+  const [range, setRange] = useState<ChartRange>('1d')
+  const [chartStats, setChartStats] = useState<TokenStatsResponse[]>([])
+  const [dayStats, setDayStats] = useState<TokenStatsResponse[]>([])
 
   useEffect(() => {
-    const refresh = () => apiClient.getConsumedTokens().then(setStats).catch(console.error)
+    let cancelled = false
+    // The stat strip always sums the last day; the chart shows the selected
+    // range. One request covers both while the chart is on 1d.
+    const refresh = async () => {
+      try {
+        const day = await apiClient.getConsumedTokens('1d')
+        const chart = range === '1d' ? day : await apiClient.getConsumedTokens(range)
+        if (cancelled) return
+        setDayStats(day)
+        setChartStats(chart)
+      } catch (err) {
+        console.error(err)
+      }
+    }
     refresh()
     // The stat strip and chart reflect real backend usage (Playground
     // requests, or actual served traffic) - poll instead of fetching once,
     // or the chart just freezes at whatever existed when the page mounted.
     const interval = setInterval(refresh, 15000)
-    return () => clearInterval(interval)
-  }, [])
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
+  }, [range])
 
   const gettingReady =
     node.phase === 'downloading' || node.phase === 'loading' || node.phase === 'connecting' || node.phase === 'stalled'
@@ -149,8 +167,8 @@ export function NodePage() {
 
       {gettingReady ? <ReadyChecklist node={node} /> : (
         <>
-          <StatStrip stats={stats} />
-          <ThroughputChart stats={stats} />
+          <StatStrip stats={dayStats} />
+          <ThroughputChart stats={chartStats} range={range} onRangeChange={setRange} />
         </>
       )}
     </div>
@@ -177,18 +195,18 @@ function CapacityRing({ pct, label, caption, color }: { pct: number; label: stri
 }
 
 /**
- * Only "Tokens today" is real (apiClient.getConsumedTokens()). The design's
+ * Only "Tokens · 24h" is real (the 1d apiClient.getConsumedTokens() series). The design's
  * Requests / Median latency / Uptime cells have no backend field yet, so
  * they're dropped rather than shown as invented numbers.
  */
 function StatStrip({ stats }: { stats: TokenStatsResponse[] }) {
-  const today = stats.reduce((s, x) => s + x.value, 0)
+  const lastDay = stats.reduce((s, x) => s + x.value, 0)
   return (
     <div className="mt-[26px] w-fit overflow-hidden rounded-[12px] border border-[var(--n-line)] bg-[var(--n-sidebar)]">
       <div className="px-4 py-3.5">
-        <div className="text-[12.5px] font-medium uppercase leading-none tracking-[0.06em] text-[var(--n-text-3)]">Tokens today</div>
+        <div className="text-[12.5px] font-medium uppercase leading-none tracking-[0.06em] text-[var(--n-text-3)]">Tokens · 24h</div>
         <div className="mt-[7px] text-[23px] font-semibold leading-none text-[var(--n-text)]">
-          {new Intl.NumberFormat('en-US').format(today)}
+          {new Intl.NumberFormat('en-US').format(lastDay)}
         </div>
       </div>
     </div>

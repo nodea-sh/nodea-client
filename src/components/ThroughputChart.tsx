@@ -1,21 +1,9 @@
-import { useMemo, useState } from 'react'
-import type { TokenStatsResponse } from '@/lib/api'
+import { useMemo } from 'react'
+import type { TokenStatsRange, TokenStatsResponse } from '@/lib/api'
 
-export type ChartRange = '1h' | '1d' | '1w'
+export type ChartRange = TokenStatsRange
 
-const AXES: Record<ChartRange, string[]> = {
-  '1h': ['−60m', '−45m', '−30m', '−15m', 'now'],
-  '1d': ['00:00', '06:00', '12:00', '18:00', 'now'],
-  '1w': ['Mon', 'Wed', 'Fri', 'Sun', 'now'],
-}
-
-const WINDOW_MS: Record<ChartRange, number> = {
-  '1h': 60 * 60 * 1000,
-  '1d': 24 * 60 * 60 * 1000,
-  '1w': 7 * 24 * 60 * 60 * 1000,
-}
-
-const BARS = 18
+const AXIS_LABELS = 5
 
 /** value 0-100 → ramp step */
 function barColor(pct: number) {
@@ -27,27 +15,45 @@ function barColor(pct: number) {
   return 'var(--n-bar-1)'
 }
 
-/** Buckets raw token stats into 18 bars for the selected window. */
-function bucket(stats: TokenStatsResponse[], range: ChartRange): number[] {
-  const now = Date.now()
-  const from = now - WINDOW_MS[range]
-  const width = WINDOW_MS[range] / BARS
-  const sums = new Array(BARS).fill(0)
-
-  for (const s of stats) {
-    const t = new Date(s.date).getTime()
-    if (t < from || t > now) continue
-    const i = Math.min(BARS - 1, Math.floor((t - from) / width))
-    sums[i] += s.value
-  }
-
-  const max = Math.max(...sums, 1)
-  return sums.map((v) => Math.round((v / max) * 100))
+/** Each bucket's share of the busiest one, 0-100. */
+function heights(stats: TokenStatsResponse[]): number[] {
+  const max = Math.max(...stats.map((s) => s.value), 1)
+  return stats.map((s) => Math.round((s.value / max) * 100))
 }
 
-export function ThroughputChart({ stats }: { stats: TokenStatsResponse[] }) {
-  const [range, setRange] = useState<ChartRange>('1d')
-  const bars = useMemo(() => bucket(stats, range), [stats, range])
+function axisLabel(t: number, last: number, range: ChartRange): string {
+  if (t === last) return 'now'
+  const date = new Date(t)
+  switch (range) {
+    case '1h':
+      return `−${Math.round((last - t) / 60000)}m`
+    case '1d':
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
+    case '1w':
+      return date.toLocaleDateString([], { weekday: 'short' })
+  }
+}
+
+/** Evenly spaced labels between the first and the last (current) bucket. */
+function axisLabels(stats: TokenStatsResponse[], range: ChartRange): string[] {
+  if (stats.length < 2) return []
+  const first = new Date(stats[0].date).getTime()
+  const last = new Date(stats[stats.length - 1].date).getTime()
+  return Array.from({ length: AXIS_LABELS }, (_, k) =>
+    axisLabel(first + ((last - first) * k) / (AXIS_LABELS - 1), last, range))
+}
+
+/**
+ * Renders the backend's buckets as-is, one bar each (oldest first); the range
+ * is owned by the caller because it decides what gets fetched.
+ */
+export function ThroughputChart({ stats, range, onRangeChange }: {
+  stats: TokenStatsResponse[]
+  range: ChartRange
+  onRangeChange: (range: ChartRange) => void
+}) {
+  const bars = useMemo(() => heights(stats), [stats])
+  const labels = useMemo(() => axisLabels(stats, range), [stats, range])
 
   return (
     <div className="mt-[26px]">
@@ -57,7 +63,7 @@ export function ThroughputChart({ stats }: { stats: TokenStatsResponse[] }) {
         </span>
         <span className="flex gap-0.5 rounded-[7px] bg-[var(--n-sidebar)] p-0.5">
           {(['1h', '1d', '1w'] as ChartRange[]).map((r) => (
-            <button key={r} onClick={() => setRange(r)}
+            <button key={r} onClick={() => onRangeChange(r)}
               className="rounded-[5px] px-2.5 py-1 text-[13px] font-semibold leading-none transition-colors"
               style={
                 range === r
@@ -72,14 +78,14 @@ export function ThroughputChart({ stats }: { stats: TokenStatsResponse[] }) {
 
       <div className="mt-3.5 flex h-24 items-end gap-[3px]">
         {bars.map((pct, i) => (
-          <div key={i}
+          <div key={i} data-testid="throughput-bar"
                className="flex-1 rounded-t-[2px] transition-[height] duration-150 ease-out"
                style={{ height: `${Math.max(pct, 2)}%`, background: barColor(pct) }} />
         ))}
       </div>
 
       <div className="mt-2 flex justify-between text-[12px] leading-none text-[var(--n-text-3)]">
-        {AXES[range].map((l) => <span key={l}>{l}</span>)}
+        {labels.map((l, i) => <span key={i}>{l}</span>)}
       </div>
     </div>
   )
