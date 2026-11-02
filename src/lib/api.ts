@@ -27,9 +27,14 @@ interface DeviceDetailResponse extends DeviceResponse {
 }
 
 interface TokenStatsResponse {
+  // ISO timestamp of the bucket start.
   date: string
   value: number
 }
+
+// Window of a token time series: 1h in 2-minute buckets, 1d hourly, 1w in
+// 6-hour buckets (backend/repositories/events.py TOKENS_TS_RANGES).
+type TokenStatsRange = '1h' | '1d' | '1w'
 
 interface CompletionRequest {
   text: string
@@ -270,12 +275,12 @@ class ApiClient {
   }
 
   // Token Stats
-  async getConsumedTokens(): Promise<TokenStatsResponse[]> {
-    return this.fetch<TokenStatsResponse[]>('/v1/token-stats')
+  async getConsumedTokens(range: TokenStatsRange = '1h'): Promise<TokenStatsResponse[]> {
+    return this.fetch<TokenStatsResponse[]>(`/v1/token-stats?range=${range}`)
   }
 
-  async getGeneratedTokens(): Promise<TokenStatsResponse[]> {
-    return this.fetch<TokenStatsResponse[]>('/v1/generated-tokens-ts')
+  async getGeneratedTokens(range: TokenStatsRange = '1h'): Promise<TokenStatsResponse[]> {
+    return this.fetch<TokenStatsResponse[]>(`/v1/generated-tokens-ts?range=${range}`)
   }
 
   // Completions
@@ -491,6 +496,7 @@ export type {
   DeviceResponse,
   DeviceDetailResponse,
   TokenStatsResponse,
+  TokenStatsRange,
   Organization,
   OrganizationMember,
   UserInvitation,
