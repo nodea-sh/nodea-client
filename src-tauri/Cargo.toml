@@ -64,6 +64,15 @@ objc2-metal = { version = "0.3.2", features = ["MTLDevice"] }
 
 [target.'cfg(not(target_os = "macos"))'.dependencies]
 mistralrs = { version = "0.8" }
+# VRAM for the DeviceIdentity handshake on CUDA builds (src/memory.rs). Same
+# version and linking mode candle-core 0.10 uses, so it unifies with the copy
+# mistralrs already links rather than adding a second one.
+cudarc = { version = "0.19.4", optional = true, default-features = false, features = [
+    "std",
+    "driver",
+    "cuda-version-from-build-system",
+    "dynamic-linking",
+] }
 
 [dev-dependencies]
 tempfile = "3.8"
@@ -72,6 +81,11 @@ tokio-test = "0.4"
 [features]
 default = []
 custom-protocol = ["tauri/custom-protocol"]
+# NVIDIA GPU inference on Windows and Linux. Off by default because it needs
+# the CUDA toolkit (nvcc) to build, which CI's test runners do not have; the
+# release workflow turns it on. The resulting binary links the CUDA driver
+# and runtime libraries, so it only starts on a machine with an NVIDIA driver.
+cuda = ["mistralrs/cuda", "dep:cudarc"]
 
 # mistralrs-quant 0.8.1's build.rs compiles its Metal kernel sources via
 # `xcrun metal -c` twice into the same output directory, discarding the

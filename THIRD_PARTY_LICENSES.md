@@ -10622,9 +10622,11 @@ Used by:
 - anyhow 1.0.100 (https://github.com/dtolnay/anyhow)
 - arraydeque 0.5.1 (https://github.com/andylokandy/arraydeque)
 - async-trait 0.1.89 (https://github.com/dtolnay/async-trait)
+- candle-kernels 0.10.2 (https://github.com/huggingface/candle)
 - candle-metal-kernels 0.10.2 (https://github.com/huggingface/candle)
 - candle-nn 0.10.2 (https://github.com/huggingface/candle)
 - cfgrammar 0.14.1 (https://github.com/softdevteam/grmtools)
+- cudarc 0.19.10 (https://github.com/chelsea0x3b/cudarc)
 - dary_heap 0.3.8 (https://github.com/hanmertens/dary_heap)
 - dirs-next 2.0.0 (https://github.com/xdg-rs/dirs)
 - dirs-sys-next 0.1.2 (https://github.com/xdg-rs/dirs/tree/master/dirs-sys)
@@ -12929,6 +12931,7 @@ CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 Used by:
 
 - libloading 0.7.4 (https://github.com/nagisa/rust_libloading/)
+- libloading 0.9.0 (https://github.com/nagisa/rust_libloading/)
 
 ```text
 Copyright © 2015, Simonas Kazlauskas

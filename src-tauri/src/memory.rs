@@ -11,12 +11,14 @@
 //!   figure that needs a per-platform probe:
 //!   - macOS: Metal `recommendedMaxWorkingSetSize` - the GPU's share of
 //!     unified memory on Apple Silicon, or the dGPU's VRAM on Intel + AMD.
-//!   - Linux and Windows: `None`. Those builds compile mistralrs without CUDA
-//!     (see Cargo.toml), so inference runs on the CPU and system RAM binds;
-//!     reporting VRAM there would size the node for memory it cannot use.
+//!   - Linux and Windows with the `cuda` feature (release builds): total VRAM
+//!     of CUDA device 0, the device mistralrs's `best_device()` loads onto.
+//!   - Linux and Windows without `cuda` (dev and CI builds): `None`. mistralrs
+//!     runs on the CPU there and system RAM binds; reporting VRAM would size
+//!     the node for memory it cannot use.
 //!
-//! CI (`test-rust`) runs on Linux only, so the macOS and Windows branches are
-//! not exercised there and need a real check on each platform.
+//! CI (`test-rust`) runs on Linux without CUDA, so the macOS and CUDA
+//! branches are not exercised there and need a real check on each platform.
 
 /// Memory figures in megabytes, as sent in `DeviceIdentity` fields 8-10.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -53,7 +55,21 @@ fn accelerator_memory_bytes() -> Option<u64> {
         .filter(|bytes| *bytes > 0)
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(all(not(target_os = "macos"), feature = "cuda"))]
+fn accelerator_memory_bytes() -> Option<u64> {
+    use cudarc::driver::result;
+
+    // None when the driver has no usable device (e.g. no NVIDIA GPU, or the
+    // driver is too old for this build); the backend then falls back to
+    // total RAM, the same as a CPU-only node.
+    result::init().ok()?;
+    let device = result::device::get(0).ok()?;
+    // SAFETY: `device` is a valid handle from cuDeviceGet after cuInit.
+    let bytes = unsafe { result::device::total_mem(device) }.ok()?;
+    u64::try_from(bytes).ok().filter(|bytes| *bytes > 0)
+}
+
+#[cfg(all(not(target_os = "macos"), not(feature = "cuda")))]
 fn accelerator_memory_bytes() -> Option<u64> {
     None
 }
@@ -122,10 +138,20 @@ mod tests {
         );
     }
 
-    #[cfg(target_os = "linux")]
+    #[cfg(all(target_os = "linux", not(feature = "cuda")))]
     #[test]
     fn linux_cpu_build_reports_no_accelerator() {
         assert_eq!(probe().accelerator_memory_mb, None);
+    }
+
+    // Needs an NVIDIA machine: without a device the probe is None and this
+    // passes vacuously.
+    #[cfg(all(not(target_os = "macos"), feature = "cuda"))]
+    #[test]
+    fn cuda_build_reports_nonzero_vram_when_a_device_exists() {
+        if let Some(accelerator) = probe().accelerator_memory_mb {
+            assert!(accelerator > 0);
+        }
     }
 
     #[cfg(target_os = "macos")]

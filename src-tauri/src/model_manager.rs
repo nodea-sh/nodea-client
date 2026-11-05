@@ -950,12 +950,12 @@ impl ModelManager {
         // Not calling .with_device() at all avoids that entirely and lets
         // mistralrs's own device selection run exactly once.
 
-        // PagedAttention is CUDA-only in mistralrs-paged-attn 0.7.0 (see
-        // mistralrs-paged-attn/src/lib.rs: cfg(feature = "cuda")). This build
-        // never enables the "cuda" feature (only "metal"/"accelerate" on
-        // macOS), so requesting paged attention leaves the pipeline's
-        // cache_config unset and mistralrs panics on its own unwrap() when
-        // building the scheduler. Don't request it here.
+        // PagedAttention is CUDA-only in mistralrs-paged-attn (see
+        // mistralrs-paged-attn/src/lib.rs: cfg(feature = "cuda")). On macOS
+        // (Metal) requesting it leaves the pipeline's cache_config unset and
+        // mistralrs panics on its own unwrap() when building the scheduler.
+        // The Windows/Linux `cuda` builds could use it, but that is untested,
+        // so it is not requested on any platform.
         //
         // Each generate_streaming()/generate() call builds a brand-new,
         // independent single-turn request (system + one user message) - there

@@ -115,6 +115,80 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
+      # Windows and Linux ship CUDA builds (the `cuda` Cargo feature): there is
+      # no CPU build, so they need an NVIDIA GPU and driver to start at all.
+      #
+      # CUDA_COMPUTE_CAP is required because the runners have no GPU for
+      # nvidia-smi to detect. mistralrs-quant, mistralrs-core and
+      # mistralrs-paged-attn compile their kernels as SASS for exactly this
+      # arch with no PTX, so 80 runs on every compute capability 8.x GPU
+      # (A100, RTX 30xx, RTX 40xx, L4, ...) and NOT on 9.x+ (H100, RTX 50xx).
+      # 12.8 is the first CUDA that knows Blackwell, for when that changes;
+      # it needs NVIDIA driver R570 or newer on the user's machine.
+      - name: Install the CUDA toolkit (Linux)
+        if: matrix.platform == 'linux'
+        run: |
+          set -eu
+          wget -q https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb
+          dpkg -i cuda-keyring_1.1-1_all.deb
+          rm cuda-keyring_1.1-1_all.deb
+          apt-get update
+          # Only what the build compiles and links against. cuda-driver-dev
+          # provides the libcuda stub to link with; the real libcuda comes
+          # from the user's driver and must never be bundled.
+          apt-get install -y --no-install-recommends \
+            cuda-nvcc-12-8 cuda-cccl-12-8 cuda-cudart-dev-12-8 cuda-driver-dev-12-8 \
+            cuda-nvrtc-dev-12-8 libcublas-dev-12-8 libcurand-dev-12-8
+          echo "CUDA_PATH=/usr/local/cuda-12.8" >> "$GITHUB_ENV"
+          echo "CUDA_COMPUTE_CAP=80" >> "$GITHUB_ENV"
+          echo "/usr/local/cuda-12.8/bin" >> "$GITHUB_PATH"
+
+      # nvcc uses cl.exe as its host compiler and does not look for it itself.
+      - name: Put MSVC on the PATH (Windows)
+        if: matrix.platform == 'windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install the CUDA toolkit (Windows)
+        if: matrix.platform == 'windows'
+        uses: Jimver/cuda-toolkit@v0.2.24
+        with:
+          cuda: '12.8.1'
+          method: network
+
+      - name: Set the CUDA compute capability (Windows)
+        if: matrix.platform == 'windows'
+        shell: bash
+        run: echo "CUDA_COMPUTE_CAP=80" >> "$GITHUB_ENV"
+
+      # The binary links the CUDA runtime libraries, so they ship next to
+      # Nodea.exe (Windows looks for DLLs in the exe's directory). Only the
+      # driver's nvcuda.dll is left to the user. A resources glob in the
+      # project root lands in the install root; tauri.conf.json's own list is
+      # kept and extended, because --config replaces arrays rather than merging.
+      - name: Stage the CUDA runtime DLLs (Windows)
+        if: matrix.platform == 'windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          CUDA_BIN="$(cygpath -u "$CUDA_PATH")/bin"
+          for pattern in 'cudart64_*.dll' 'cublas64_*.dll' 'cublasLt64_*.dll' \
+                         'curand64_*.dll' 'nvrtc64_*.dll' 'nvrtc-builtins64_*.dll'; do
+            matches=$(compgen -G "$CUDA_BIN/$pattern" || true)
+            if [ -z "$matches" ]; then
+              echo "::error::No $pattern in $CUDA_BIN"
+              exit 1
+            fi
+            cp -v $matches src-tauri/
+          done
+          CONFIG="$RUNNER_TEMP/tauri.cuda.conf.json"
+          node -e '
+            const conf = require("./src-tauri/tauri.conf.json");
+            const resources = [...conf.tauri.bundle.resources, "*.dll"];
+            process.stdout.write(JSON.stringify({ tauri: { bundle: { resources } } }));
+          ' > "$CONFIG"
+          cat "$CONFIG"
+          echo "NODEA_TAURI_CUDA_CONFIG=$CONFIG" >> "$GITHUB_ENV"
+
       # Every runner is GitHub-hosted and has no persistent disk, so unlike the
       # monorepo this caches on all three platforms.
       - name: Cache cargo dependencies
@@ -300,8 +374,21 @@ jobs:
             # --verbose makes the bundler print the codesign error it would
             # otherwise collapse into "failed to sign app".
             npm run tauri build -- --verbose
+          elif [ "${{ matrix.platform }}" = "windows" ]; then
+            npm run tauri build -- --features cuda --config "$NODEA_TAURI_CUDA_CONFIG"
           else
-            npm run tauri build
+            # linuxdeploy bundles every library the binary links, so the CUDA
+            # runtime (cuBLAS, cudart, ...) goes into the AppImage once it can
+            # resolve it. libcuda.so.1 is the driver's: it must resolve too, or
+            # linuxdeploy aborts with "Could not find dependency", but it is
+            # excluded so the user's own driver is the one loaded. The stub is
+            # exposed as libcuda.so.1 only for this resolution step.
+            STUB_DIR="$RUNNER_TEMP/cuda-stub"
+            mkdir -p "$STUB_DIR"
+            ln -sf "$CUDA_PATH/lib64/stubs/libcuda.so" "$STUB_DIR/libcuda.so.1"
+            export LD_LIBRARY_PATH="$CUDA_PATH/lib64:$STUB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+            export LINUXDEPLOY_EXCLUDED_LIBRARIES='libcuda.so*'
+            npm run tauri build -- --features cuda
           fi
 
       # tauri-bundler notarises and staples the .app, then builds the DMG from
@@ -368,6 +455,32 @@ jobs:
           fi
           rm -f "${NODEA_NOTARY_KEY:-}"
           echo "signing keychain and notary key removed"
+
+      # The two ways the Linux CUDA bundle breaks only on a user's machine:
+      # the runtime libraries missing (the app will not start), or the
+      # toolkit's libcuda stub bundled in place of the driver (every CUDA call
+      # fails, so nothing loads on the GPU).
+      - name: Check the AppImage's CUDA libraries
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          APPDIR=$(find src-tauri/target/release/bundle/appimage -maxdepth 1 -type d -name '*.AppDir' | head -1)
+          if [ -z "$APPDIR" ]; then
+            echo "::error::No AppDir under src-tauri/target/release/bundle/appimage"
+            exit 1
+          fi
+          for lib in libcudart.so libcublas.so libcublasLt.so libcurand.so libnvrtc.so; do
+            if [ -z "$(find "$APPDIR" -name "$lib*" -print -quit)" ]; then
+              echo "::error::$lib is not bundled in $APPDIR"
+              exit 1
+            fi
+          done
+          if [ -n "$(find "$APPDIR" -name 'libcuda.so*' -print -quit)" ]; then
+            echo "::error::libcuda is bundled - it must come from the user's NVIDIA driver"
+            exit 1
+          fi
+          echo "CUDA runtime bundled, driver library left to the system"
 
       - name: Stage the bundle
         shell: bash
