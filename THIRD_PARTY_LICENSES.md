@@ -2076,7 +2076,6 @@ Used by:
 - windows-link 0.2.1 (https://github.com/microsoft/windows-rs)
 - windows-numerics 0.2.0 (https://github.com/microsoft/windows-rs)
 - windows-numerics 0.3.1 (https://github.com/microsoft/windows-rs)
-- windows-registry 0.5.3 (https://github.com/microsoft/windows-rs)
 - windows-registry 0.6.1 (https://github.com/microsoft/windows-rs)
 - windows-result 0.3.4 (https://github.com/microsoft/windows-rs)
 - windows-result 0.4.1 (https://github.com/microsoft/windows-rs)
@@ -8963,6 +8962,7 @@ Used by:
 - event-listener-strategy 0.5.4 (https://github.com/smol-rs/event-listener-strategy)
 - event-listener 5.4.2 (https://github.com/smol-rs/event-listener)
 - fastrand 2.3.0 (https://github.com/smol-rs/fastrand)
+- filetime 0.2.29 (https://github.com/alexcrichton/filetime)
 - flate2 1.1.5 (https://github.com/rust-lang/flate2-rs)
 - fnv 1.0.7 (https://github.com/servo/rust-fnv)
 - form_urlencoded 1.2.2 (https://github.com/servo/rust-url)
@@ -9057,6 +9057,7 @@ Used by:
 - stable_deref_trait 1.2.1 (https://github.com/storyyeller/stable_deref_trait)
 - string_cache 0.9.0 (https://github.com/servo/string-cache)
 - syn 1.0.109 (https://github.com/dtolnay/syn)
+- tar 0.4.46 (https://github.com/composefs/tar-rs)
 - tempfile 3.23.0 (https://github.com/Stebalien/tempfile)
 - tendril 0.4.3 (https://github.com/servo/tendril)
 - tendril 0.5.0 (https://github.com/servo/html5ever)
@@ -9075,6 +9076,7 @@ Used by:
 - web_atoms 0.2.3 (https://github.com/servo/html5ever)
 - window-vibrancy 0.8.1 (https://github.com/tauri-apps/tauri-plugin-vibrancy)
 - wry 0.57.1 (https://github.com/tauri-apps/wry)
+- xattr 1.6.1 (https://github.com/Stebalien/xattr)
 
 ```text
                               Apache License
@@ -12515,8 +12517,10 @@ Used by:
 - objc2-exception-helper 0.1.1 (https://github.com/madsmtm/objc2)
 - objc2-io-kit 0.3.2 (https://github.com/madsmtm/objc2)
 - objc2-metal 0.3.2 (https://github.com/madsmtm/objc2)
+- objc2-osa-kit 0.3.2 (https://github.com/madsmtm/objc2)
 - objc2-quartz-core 0.3.2 (https://github.com/madsmtm/objc2)
 - objc2-web-kit 0.3.2 (https://github.com/madsmtm/objc2)
+- osakit 0.3.1 (https://github.com/mdevils/rust-osakit)
 - packedvec 1.2.5 (https://github.com/softdevteam/packedvec/)
 - paste 1.0.15 (https://github.com/dtolnay/paste)
 - pastey 0.1.1 (https://github.com/as1100k/pastey)
@@ -12566,6 +12570,7 @@ Used by:
 - tauri-plugin-deep-link 2.6.3 (https://github.com/tauri-apps/plugins-workspace)
 - tauri-plugin-opener 2.7.2 (https://github.com/tauri-apps/plugins-workspace)
 - tauri-plugin-single-instance 2.5.5 (https://github.com/tauri-apps/plugins-workspace)
+- tauri-plugin-updater 2.14.1 (https://github.com/tauri-apps/plugins-workspace)
 - tauri-runtime-wry 2.12.3 (https://github.com/tauri-apps/tauri)
 - tauri-runtime 2.12.2 (https://github.com/tauri-apps/tauri)
 - tauri-utils 2.10.2 (https://github.com/tauri-apps/tauri)
@@ -17412,6 +17417,7 @@ Used by:
 - fax_derive 0.2.0 (https://github.com/pdf-rs/fax)
 - libm 0.2.16 (https://github.com/rust-lang/compiler-builtins)
 - malloc_buf 0.0.6 (https://github.com/SSheldon/malloc_buf)
+- minisign-verify 0.3.0 (https://github.com/jedisct1/rust-minisign-verify)
 - mistralrs-audio 0.8.1 (https://github.com/EricLBuehler/mistral.rs)
 - mistralrs-core 0.8.1 (https://github.com/EricLBuehler/mistral.rs)
 - mistralrs-macros 0.8.1 (https://github.com/EricLBuehler/mistral.rs)
@@ -17800,6 +17806,7 @@ SOFTWARE.
 Used by:
 
 - tracing-core 0.1.36 (https://github.com/tokio-rs/tracing)
+- zip 9.0.0 (https://github.com/zip-rs/zip2)
 
 ```text
 The MIT License (MIT)

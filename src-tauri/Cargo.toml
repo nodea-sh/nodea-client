@@ -35,6 +35,9 @@ tauri-plugin-opener = "2"
 # On Windows and Linux a nodea:// link starts a second process; this hands it
 # to the running app instead (the deep-link feature forwards the URL).
 tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
+# In-app updates; driven from Rust only (src/updater.rs), so the frontend gets
+# no updater permission in capabilities/.
+tauri-plugin-updater = "2"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio = { version = "1", features = ["full"] }
@@ -72,6 +75,7 @@ mistralrs = { version = "0.8" }
 
 [dev-dependencies]
 tempfile = "3.8"
+tokio = { version = "1", features = ["test-util"] }
 tokio-test = "0.4"
 
 [features]

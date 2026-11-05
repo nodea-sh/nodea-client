@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { Broadcast, Monitor, Gear, CaretDown, Robot, Bug } from '@phosphor-icons/react'
+import { Broadcast, Monitor, Gear, CaretDown, Robot, Bug, ArrowClockwise, X } from '@phosphor-icons/react'
 import { useAuth } from '@/contexts/AuthContext'
 import { NodeStatusWidget } from '@/components/NodeStatusWidget'
 import type { NodeState } from '@/hooks/useNodePhase'
+import { useUpdater, type Updater } from '@/hooks/useUpdater'
 import { WEB_CONSOLE_URL } from '@/lib/webConsole'
 
 const NAV = [
@@ -20,9 +21,40 @@ const DEV_NAV = [
   { to: '/dev-logs', label: 'Dev Logs', Icon: Bug },
 ]
 
+/* Shown only once there is something to act on: a downloaded update, or the
+ * restart the user asked for. Checking and downloading stay silent. */
+function UpdateItem({ updater }: { updater: Updater }) {
+  const { update, dismissed, dismiss, restart } = updater
+
+  if (update.state === 'installing') {
+    return (
+      <div role="status" className="flex items-center gap-2 border-t border-[var(--n-line-strong)] px-3.5 py-2.5 text-[13.5px] leading-[1.3] text-[var(--n-text-3)]">
+        <ArrowClockwise size={14} className="animate-spin" />
+        {update.finishing_requests ? 'Finishing current request…' : 'Restarting…'}
+      </div>
+    )
+  }
+  if (update.state !== 'ready' || dismissed) return null
+
+  return (
+    <div className="flex items-center gap-1 border-t border-[var(--n-line-strong)] py-1.5 pl-2.5 pr-1.5">
+      <button onClick={restart}
+        className="flex min-w-0 flex-1 items-center gap-2 rounded-[7px] px-1 py-1.5 text-left text-[13.5px] font-semibold leading-[1.2] text-[var(--n-accent-200)] transition-colors hover:bg-[var(--n-tint-hover)]">
+        <ArrowClockwise size={14} className="flex-none" />
+        <span className="truncate">Update ready · Restart</span>
+      </button>
+      <button onClick={dismiss} aria-label="Dismiss update"
+        className="flex h-6 w-6 flex-none items-center justify-center rounded-[6px] text-[var(--n-text-4)] transition-colors hover:bg-[var(--n-tint-hover)] hover:text-[var(--n-text-2)]">
+        <X size={12} />
+      </button>
+    </div>
+  )
+}
+
 export function Sidebar({ node }: { node: NodeState }) {
   const { user, organization, isAdmin, logout } = useAuth()
   const [accountOpen, setAccountOpen] = useState(false)
+  const updater = useUpdater()
 
   const initials = (user?.name || user?.email || 'U').slice(0, 2).toUpperCase()
 
@@ -63,6 +95,8 @@ export function Sidebar({ node }: { node: NodeState }) {
 
       <NodeStatusWidget node={node} />
 
+      <UpdateItem updater={updater} />
+
       <div className="relative border-t border-[var(--n-line-strong)]">
         {accountOpen && (
           <div className="absolute bottom-[calc(100%+6px)] left-2.5 right-2.5 z-[2] rounded-[10px] bg-[var(--n-raised)] p-1.5 shadow-[var(--n-shadow-md)]">
@@ -77,7 +111,7 @@ export function Sidebar({ node }: { node: NodeState }) {
             <div className="mx-0.5 mb-[5px] h-px bg-[var(--n-border)]" />
             {[
               { label: 'Web console ↗', onClick: () => window.open(WEB_CONSOLE_URL, '_blank') },
-              { label: 'Check for updates', onClick: () => {} },
+              { label: 'Check for updates', onClick: () => { setAccountOpen(false); updater.check() } },
               { label: 'Sign out', onClick: logout },
             ].map(({ label, onClick }) => (
               <button key={label} onClick={onClick}
