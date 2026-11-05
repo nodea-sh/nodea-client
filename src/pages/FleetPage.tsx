@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { invoke } from '@tauri-apps/api/tauri'
+import { invoke } from '@tauri-apps/api/core'
 import { apiClient, type DeviceResponse } from '@/lib/api'
 import { isDemoMode, mockInvoke } from '@/lib/mockTauri'
 import { WEB_CONSOLE_URL } from '@/lib/webConsole'

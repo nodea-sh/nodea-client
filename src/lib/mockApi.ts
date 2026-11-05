@@ -5,6 +5,7 @@ import type {
   DeviceResponse,
   DeviceDetailResponse,
   TokenStatsResponse,
+  TokenStatsRange,
   Organization,
   OrganizationMember,
   UserInvitation,
@@ -83,27 +84,24 @@ const mockDeviceDetails: Record<string, DeviceDetailResponse> = {
   },
 }
 
-// Generate mock time-series data
-const generateTimeSeriesData = (hours: number, baseValue: number): TokenStatsResponse[] => {
-  const data: TokenStatsResponse[] = []
-  const now = Date.now()
-
-  for (let i = hours; i >= 0; i--) {
-    const date = new Date(now - i * 60 * 60 * 1000)
-    const variance = Math.random() * 0.4 + 0.8 // 0.8 to 1.2
-    const value = Math.floor(baseValue * variance)
-
-    data.push({
-      date: date.toISOString(),
-      value,
-    })
-  }
-
-  return data
+// Same bucket layout as the backend: [bucket width, bucket count].
+const MINUTE = 60 * 1000
+const MOCK_TS_BUCKETS: Record<TokenStatsRange, [number, number]> = {
+  '1h': [2 * MINUTE, 31],
+  '1d': [60 * MINUTE, 25],
+  '1w': [6 * 60 * MINUTE, 29],
 }
 
-const mockConsumedTokens = generateTimeSeriesData(24, 5000)
-const mockGeneratedTokens = generateTimeSeriesData(24, 3000)
+// Generate mock time-series data, oldest bucket first
+const generateTimeSeriesData = (range: TokenStatsRange, baseValue: number): TokenStatsResponse[] => {
+  const [step, count] = MOCK_TS_BUCKETS[range]
+  const last = Math.floor(Date.now() / step) * step
+
+  return Array.from({ length: count }, (_, i) => ({
+    date: new Date(last - (count - 1 - i) * step).toISOString(),
+    value: Math.floor(baseValue * (Math.random() * 0.4 + 0.8)), // 0.8 to 1.2
+  }))
+}
 
 const mockModels = [
   { id: 'llama-3-8b', name: 'Llama 3 8B' },
@@ -348,14 +346,14 @@ export class MockApiClient {
     return { ...device }
   }
 
-  async getConsumedTokens(): Promise<TokenStatsResponse[]> {
+  async getConsumedTokens(range: TokenStatsRange = '1h'): Promise<TokenStatsResponse[]> {
     await delay(400)
-    return [...mockConsumedTokens]
+    return generateTimeSeriesData(range, 5000)
   }
 
-  async getGeneratedTokens(): Promise<TokenStatsResponse[]> {
+  async getGeneratedTokens(range: TokenStatsRange = '1h'): Promise<TokenStatsResponse[]> {
     await delay(400)
-    return [...mockGeneratedTokens]
+    return generateTimeSeriesData(range, 3000)
   }
 
   async createCompletion(_data: { text: string; model: string }): Promise<{ id: string }> {
