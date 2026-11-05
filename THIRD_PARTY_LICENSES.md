@@ -2077,6 +2077,7 @@ Used by:
 - windows-numerics 0.2.0 (https://github.com/microsoft/windows-rs)
 - windows-numerics 0.3.1 (https://github.com/microsoft/windows-rs)
 - windows-registry 0.5.3 (https://github.com/microsoft/windows-rs)
+- windows-registry 0.6.1 (https://github.com/microsoft/windows-rs)
 - windows-result 0.3.4 (https://github.com/microsoft/windows-rs)
 - windows-result 0.4.1 (https://github.com/microsoft/windows-rs)
 - windows-strings 0.4.2 (https://github.com/microsoft/windows-rs)
@@ -4437,6 +4438,8 @@ Used by:
 Used by:
 
 - serde_spanned 1.1.2 (https://github.com/toml-rs/toml)
+- toml 1.2.0+spec-1.1.0 (https://github.com/toml-rs/toml)
+- toml_datetime 1.1.2+spec-1.1.0 (https://github.com/toml-rs/toml)
 - toml_parser 1.1.5+spec-1.1.0 (https://github.com/toml-rs/toml)
 - toml_writer 1.2.0+spec-1.1.0 (https://github.com/toml-rs/toml)
 
@@ -12560,9 +12563,9 @@ Used by:
 - system-configuration 0.5.1 (https://github.com/mullvad/system-configuration-rs)
 - tauri-codegen 2.7.4 (https://github.com/tauri-apps/tauri)
 - tauri-macros 2.7.4 (https://github.com/tauri-apps/tauri)
-- tauri-plugin-deep-link 2.4.10 (https://github.com/tauri-apps/plugins-workspace)
-- tauri-plugin-opener 2.5.5 (https://github.com/tauri-apps/plugins-workspace)
-- tauri-plugin-single-instance 2.4.5 (https://github.com/tauri-apps/plugins-workspace)
+- tauri-plugin-deep-link 2.6.3 (https://github.com/tauri-apps/plugins-workspace)
+- tauri-plugin-opener 2.7.2 (https://github.com/tauri-apps/plugins-workspace)
+- tauri-plugin-single-instance 2.5.5 (https://github.com/tauri-apps/plugins-workspace)
 - tauri-runtime-wry 2.12.3 (https://github.com/tauri-apps/tauri)
 - tauri-runtime 2.12.2 (https://github.com/tauri-apps/tauri)
 - tauri-utils 2.10.2 (https://github.com/tauri-apps/tauri)
