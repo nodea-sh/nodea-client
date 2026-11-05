@@ -3,9 +3,11 @@
  * Determines if the app is running in Tauri (desktop) or web mode
  */
 
-export const isTauriApp = (): boolean => {
-  return typeof window !== 'undefined' && '__TAURI__' in window
-}
+import { isTauri } from '@tauri-apps/api/core'
+
+// Tauri v2 only defines window.__TAURI__ with withGlobalTauri, which is off,
+// so this asks the API package instead.
+export const isTauriApp = (): boolean => isTauri()
 
 export const isWebMode = (): boolean => {
   return !isTauriApp()

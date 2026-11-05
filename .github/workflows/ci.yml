@@ -14,8 +14,8 @@ permissions:
   contents: read
 
 jobs:
-  # ubuntu-latest is 24.04, which dropped libwebkit2gtk-4.0-dev. Tauri v1 needs
-  # 4.0, so the build runs in a 22.04 container where it is still available,
+  # Runs in a 22.04 container so the system libraries Tauri links (webkit2gtk
+  # 4.1 and friends) are the same ones the release AppImage is built against,
   # regardless of what the host image becomes.
   rust:
     runs-on: ubuntu-latest
@@ -31,7 +31,7 @@ jobs:
 
       - name: Install Tauri system dependencies
         run: |
-          apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev libappindicator3-dev \
+          apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev libxdo-dev \
             librsvg2-dev patchelf libssl-dev
           # No protobuf-compiler: src-tauri/build.rs uses protoc-bin-vendored.
 
@@ -222,6 +222,21 @@ jobs:
           Add-Content $env:GITHUB_ENV "VULKAN_SDK=C:\VulkanSDK\$env:VULKAN_VERSION"
           Add-Content $env:GITHUB_PATH "C:\VulkanSDK\$env:VULKAN_VERSION\Bin"
 
+      # llama.cpp's Vulkan CMake needs find_package(SPIRV-Headers CONFIG),
+      # which this SDK's installer does not provide. Header-only, from the
+      # Khronos tag matching the SDK, found through CMAKE_PREFIX_PATH.
+      - name: Install SPIRV-Headers (Windows)
+        shell: pwsh
+        env:
+          VULKAN_VERSION: 1.4.309.0
+        run: |
+          $src = "$env:RUNNER_TEMP\SPIRV-Headers"
+          $prefix = "$env:RUNNER_TEMP\spirv-headers-install"
+          git clone --depth 1 --branch "vulkan-sdk-$env:VULKAN_VERSION" https://github.com/KhronosGroup/SPIRV-Headers $src
+          cmake -S $src -B "$src\build" -DCMAKE_INSTALL_PREFIX="$prefix" -DSPIRV_HEADERS_ENABLE_TESTS=OFF -DSPIRV_HEADERS_ENABLE_INSTALL=ON
+          cmake --install "$src\build"
+          Add-Content $env:GITHUB_ENV "CMAKE_PREFIX_PATH=$prefix"
+
       - uses: actions/cache@v4
         with:
           path: |
@@ -366,7 +381,7 @@ jobs:
 
       - name: Install Tauri system dependencies
         run: |
-          apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev libappindicator3-dev \
+          apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev libxdo-dev \
             librsvg2-dev patchelf libssl-dev
 
       - uses: actions/checkout@v4

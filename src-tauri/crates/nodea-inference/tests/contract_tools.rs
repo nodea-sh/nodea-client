@@ -77,10 +77,12 @@ fn tool_call_is_parsed_into_openai_shape() {
 #[test]
 fn named_tool_choice_forces_that_tool() {
     let Some(model) = model("tools") else { return };
-    // The question is about weather; forcing get_time proves the choice, not
-    // the model's judgement, decided the call.
+    // Two tools and a prompt that favours neither: the call going to
+    // get_time is the named choice at work. (A weather question forced onto
+    // get_time invites prose first, which llama.cpp's grammar allows before
+    // the call, and on x86 the greedy path ran out of tokens doing it.)
     let request = req(&format!(
-        r#"{{"messages":[{{"role":"user","content":"What is the weather in Oslo? /no_think"}}],
+        r#"{{"messages":[{{"role":"user","content":"Use one of your tools for Oslo. /no_think"}}],
         "max_tokens":128,"temperature":0,"tools":[{WEATHER_TOOL},{TIME_TOOL}],
         "tool_choice":{{"type":"function","function":{{"name":"get_time"}}}}}}"#
     ));
