@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Terminal, ChevronDown, ChevronRight } from 'lucide-react'
-import { invoke } from '@tauri-apps/api/tauri'
+import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'

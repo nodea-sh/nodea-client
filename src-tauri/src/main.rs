@@ -11,34 +11,58 @@ pub use ai4all_tauri::{devlog, model_manager, openai_request, proto, protocol, r
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tauri::{
-    CustomMenuItem, Manager, SystemTray, SystemTrayEvent, SystemTrayMenu, SystemTrayMenuItem,
-    WindowEvent,
-};
+use tauri::menu::{CheckMenuItem, Menu, MenuEvent, MenuItem, PredefinedMenuItem};
+use tauri::{Emitter, Manager, WindowEvent, Wry};
 use tokio::sync::Mutex;
 
 const TRAY_STATUS_ID: &str = "status";
 const TRAY_TOGGLE_SHARING_ID: &str = "toggle_sharing";
 
-/// Builds the menu-bar tray: a disabled status line, a serving/pause toggle
-/// mirroring the app's own Sharing switch, and Open/Quit. Closing or
-/// minimizing the main window keeps the app running behind this tray icon -
-/// see the `on_window_event` hookup in `main()`'s `.setup()`.
-fn build_tray() -> SystemTray {
-    let status_item = CustomMenuItem::new(TRAY_STATUS_ID, "Status: Offline").disabled();
-    let toggle_item = CustomMenuItem::new(TRAY_TOGGLE_SHARING_ID, "Sharing");
-    let open_item = CustomMenuItem::new("open", "Open Nodea");
-    let quit_item = CustomMenuItem::new("quit", "Quit");
+/// The tray menu items `refresh_tray` rewrites. v2 has no lookup by id, so
+/// the handles are kept in managed state.
+struct TrayItems {
+    status: MenuItem<Wry>,
+    toggle_sharing: CheckMenuItem<Wry>,
+}
 
-    let menu = SystemTrayMenu::new()
-        .add_item(status_item)
-        .add_native_item(SystemTrayMenuItem::Separator)
-        .add_item(toggle_item)
-        .add_native_item(SystemTrayMenuItem::Separator)
-        .add_item(open_item)
-        .add_item(quit_item);
+/// Builds the menu-bar tray's menu: a disabled status line, a serving/pause
+/// toggle mirroring the app's own Sharing switch, and Open/Quit. The icon
+/// itself is declared in tauri.conf.json (`app.trayIcon`, id "main").
+/// Closing the main window keeps the app running behind this tray icon - see
+/// the `on_window_event` hookup in `main()`'s `.setup()`.
+fn build_tray(app: &tauri::App) -> tauri::Result<()> {
+    let status = MenuItem::with_id(app, TRAY_STATUS_ID, "Status: Offline", false, None::<&str>)?;
+    let toggle_sharing = CheckMenuItem::with_id(
+        app,
+        TRAY_TOGGLE_SHARING_ID,
+        "Sharing",
+        true,
+        false,
+        None::<&str>,
+    )?;
+    let open = MenuItem::with_id(app, "open", "Open Nodea", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
 
-    SystemTray::new().with_menu(menu)
+    let menu = Menu::with_items(
+        app,
+        &[
+            &status,
+            &PredefinedMenuItem::separator(app)?,
+            &toggle_sharing,
+            &PredefinedMenuItem::separator(app)?,
+            &open,
+            &quit,
+        ],
+    )?;
+
+    if let Some(tray) = app.tray_by_id("main") {
+        tray.set_menu(Some(menu))?;
+    }
+    app.manage(TrayItems {
+        status,
+        toggle_sharing,
+    });
+    Ok(())
 }
 
 /// One of the four states the tray's status line shows - a coarser view
@@ -70,27 +94,20 @@ async fn refresh_tray(state: &AppState, app_handle: &tauri::AppHandle) {
     let model = state.model_status.lock().await.clone();
 
     let label = tray_status_label(&connection, &model);
-    let _ = app_handle
-        .tray_handle()
-        .get_item(TRAY_STATUS_ID)
-        .set_title(format!("Status: {}", label));
+    let Some(items) = app_handle.try_state::<TrayItems>() else {
+        return;
+    };
+    let _ = items.status.set_text(format!("Status: {}", label));
 
     // A checkbox-style item (native checkmark), not a text swap - "Sharing"
     // stays put, checked means currently serving.
-    let _ = app_handle
-        .tray_handle()
-        .get_item(TRAY_TOGGLE_SHARING_ID)
-        .set_selected(label == "Serving");
+    let _ = items.toggle_sharing.set_checked(label == "Serving");
 }
 
-fn handle_tray_event(app_handle: &tauri::AppHandle, event: SystemTrayEvent) {
-    let SystemTrayEvent::MenuItemClick { id, .. } = event else {
-        return;
-    };
-
-    match id.as_str() {
+fn handle_menu_event(app_handle: &tauri::AppHandle, event: MenuEvent) {
+    match event.id().as_ref() {
         "open" => {
-            if let Some(window) = app_handle.get_window("main") {
+            if let Some(window) = app_handle.get_webview_window("main") {
                 let _ = window.show();
                 let _ = window.set_focus();
             }
@@ -116,7 +133,7 @@ fn handle_tray_event(app_handle: &tauri::AppHandle, event: SystemTrayEvent) {
                 // only changes when the user clicks the widget - it doesn't
                 // otherwise watch connection state, so without this the app UI
                 // would show stale "Sharing" after a pause triggered from the tray.
-                let _ = app_handle.emit_all("sharing-changed", !currently_serving);
+                let _ = app_handle.emit("sharing-changed", !currently_serving);
             });
         }
         "quit" => {
@@ -309,7 +326,7 @@ pub(crate) async fn set_connection_status(
     *status = new_status.clone();
     drop(status);
 
-    if let Err(e) = app_handle.emit_all("connection-status-changed", &new_status) {
+    if let Err(e) = app_handle.emit("connection-status-changed", &new_status) {
         eprintln!("Failed to emit connection status event: {}", e);
     }
 
@@ -326,7 +343,7 @@ pub(crate) async fn set_model_status(
     *status = new_status.clone();
     drop(status);
 
-    if let Err(e) = app_handle.emit_all("model-status-changed", &new_status) {
+    if let Err(e) = app_handle.emit("model-status-changed", &new_status) {
         eprintln!("Failed to emit model status event: {}", e);
     }
 
@@ -508,7 +525,7 @@ async fn log_rest_api_call(
     devlog::push_capped(&mut log, entry.clone());
 
     // Emit event to frontend
-    if let Err(e) = app_handle.emit_all("new-message", &entry) {
+    if let Err(e) = app_handle.emit("new-message", &entry) {
         eprintln!("Failed to emit log message event: {}", e);
     }
 
@@ -546,7 +563,7 @@ async fn log_frontend_event(
     let mut log = state.message_log.lock().await;
     log.push(entry.clone());
 
-    if let Err(e) = app_handle.emit_all("new-message", &entry) {
+    if let Err(e) = app_handle.emit("new-message", &entry) {
         eprintln!("Failed to emit log message event: {}", e);
     }
 
@@ -734,7 +751,7 @@ async fn load_model_auto(
 
             // Emit legacy event for compatibility
             app_handle_clone
-                .emit_all("model-download-progress", progress.clone())
+                .emit("model-download-progress", progress.clone())
                 .ok();
 
             // Only update status to "Downloading" if not complete (< 100%)
@@ -959,9 +976,9 @@ async fn check_stored_auth_internal(
 // Helper functions for token storage
 fn get_token_file_path(app_handle: &tauri::AppHandle) -> Result<PathBuf, String> {
     let app_data_dir = app_handle
-        .path_resolver()
+        .path()
         .app_data_dir()
-        .ok_or("Failed to get app data directory")?;
+        .map_err(|e| format!("Failed to get app data directory: {}", e))?;
 
     // Create directory if it doesn't exist
     fs::create_dir_all(&app_data_dir)
@@ -1021,9 +1038,9 @@ async fn clear_tokens_from_store(app_handle: &tauri::AppHandle) -> Result<(), St
 // Helper functions for device ID storage
 fn get_device_id_file_path(app_handle: &tauri::AppHandle) -> Result<PathBuf, String> {
     let app_data_dir = app_handle
-        .path_resolver()
+        .path()
         .app_data_dir()
-        .ok_or("Failed to get app data directory")?;
+        .map_err(|e| format!("Failed to get app data directory: {}", e))?;
 
     // Create directory if it doesn't exist
     fs::create_dir_all(&app_data_dir)
@@ -1077,51 +1094,62 @@ fn get_or_create_device_id(app_handle: &tauri::AppHandle) -> String {
     }
 }
 
-/// Bundle identifier from tauri.conf.json's `tauri.bundle.identifier` -
-/// tauri-plugin-deep-link needs this to register the OS-level URL handler.
-const APP_IDENTIFIER: &str = "com.getnodea.app";
-const DEEP_LINK_SCHEME: &str = "nodea";
-
 fn main() {
-    // Must run before the Tauri builder - registers this binary as the
-    // handler for DEEP_LINK_SCHEME with the OS (Windows registry / Linux
-    // .desktop file). On macOS, the app bundle's Info.plist must also
-    // declare CFBundleURLTypes for the scheme (see src-tauri/Info.plist).
-    tauri_plugin_deep_link::prepare(APP_IDENTIFIER);
-
     tauri::Builder::default()
+        // Must be the first plugin. On Windows and Linux a nodea:// link
+        // launches a second process; this hands it to the running one, and
+        // its deep-link feature turns it into an on_open_url event below.
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        }))
+        // The scheme is declared in tauri.conf.json (plugins.deep-link), which
+        // is also what puts it in the macOS bundle's Info.plist.
+        .plugin(tauri_plugin_deep_link::init())
+        .plugin(tauri_plugin_opener::init())
         .setup(|app| {
+            use tauri_plugin_deep_link::DeepLinkExt;
+
+            // The installers register the scheme on Windows. An AppImage has
+            // no installer and may move, so Linux registers it on every run;
+            // so does a Windows dev build, which is never installed.
+            #[cfg(any(target_os = "linux", all(debug_assertions, windows)))]
+            if let Err(e) = app.deep_link().register_all() {
+                eprintln!("Failed to register nodea:// deep link scheme: {}", e);
+            }
+
             // Forward incoming nodea:// links (invitation/confirm-email
             // emails) to the frontend, which navigates the router to the
             // link's path - see src/components/DeepLinkListener.tsx.
-            let handle = app.handle();
-            if let Err(e) = tauri_plugin_deep_link::register(DEEP_LINK_SCHEME, move |request| {
-                // A Google sign-in comes back on this same scheme and is
-                // consumed by the Rust side, which is what is waiting for it.
-                // Swallowed even when nothing is waiting: a stale callback is
-                // still not a route, and forwarding it would navigate the app
-                // to /callback and land the user on "not found".
-                if auth::is_oauth_callback(&request) {
-                    auth::deliver_oauth_callback(&request);
-                    return;
-                }
+            let handle = app.handle().clone();
+            app.deep_link().on_open_url(move |event| {
+                for url in event.urls() {
+                    let request = url.to_string();
+                    // A Google sign-in comes back on this same scheme and is
+                    // consumed by the Rust side, which is what is waiting for
+                    // it. Swallowed even when nothing is waiting: a stale
+                    // callback is still not a route, and forwarding it would
+                    // navigate the app to /callback and land the user on
+                    // "not found".
+                    if auth::is_oauth_callback(&request) {
+                        auth::deliver_oauth_callback(&request);
+                        continue;
+                    }
 
-                if let Err(e) = handle.emit_all("scheme-request-received", request) {
-                    eprintln!("Failed to emit deep link event: {}", e);
+                    if let Err(e) = handle.emit("scheme-request-received", request) {
+                        eprintln!("Failed to emit deep link event: {}", e);
+                    }
                 }
-            }) {
-                eprintln!(
-                    "Failed to register {}:// deep link scheme: {}",
-                    DEEP_LINK_SCHEME, e
-                );
-            }
+            });
 
             // Get or create persistent device ID
-            let device_id = get_or_create_device_id(&app.handle());
+            let device_id = get_or_create_device_id(app.handle());
 
             // Get app data directory for model cache
             let app_data_dir = app
-                .path_resolver()
+                .path()
                 .app_data_dir()
                 .expect("Failed to get app data directory");
 
@@ -1143,10 +1171,12 @@ fn main() {
                 model_switch: Arc::new(Mutex::new(())),
             });
 
+            build_tray(app)?;
+
             // Keep running behind the tray on close/quit instead of exiting -
-            // only the tray's own "Quit" item (see handle_tray_event) performs
+            // only the tray's own "Quit" item (see handle_menu_event) performs
             // a real app_handle.exit(0).
-            if let Some(window) = app.get_window("main") {
+            if let Some(window) = app.get_webview_window("main") {
                 window.clone().on_window_event(move |event| {
                     if let WindowEvent::CloseRequested { api, .. } = event {
                         api.prevent_close();
@@ -1157,8 +1187,7 @@ fn main() {
 
             Ok(())
         })
-        .system_tray(build_tray())
-        .on_system_tray_event(handle_tray_event)
+        .on_menu_event(handle_menu_event)
         .invoke_handler(tauri::generate_handler![
             login_email_password,
             login_oauth,

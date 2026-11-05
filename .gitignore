@@ -43,3 +43,6 @@ playwright-report/
 
 # Python bytecode from the scripts/ tests
 __pycache__/
+
+# Tauri v2 regenerates the capability schemas on every build.
+/src-tauri/gen/schemas
