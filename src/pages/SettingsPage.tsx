@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
-import { invoke } from '@tauri-apps/api/tauri'
+import { invoke } from '@tauri-apps/api/core'
 import { useAuth } from '@/contexts/AuthContext'
 import { AccountSection } from '@/components/account/AccountSection'
 import { isDemoMode, mockInvoke } from '@/lib/mockTauri'

@@ -64,9 +64,9 @@ The app is built with:
 
 - Rust 1.94+ (mistral.rs 0.9's minimum)
 - Node.js 20+
-- On Linux, the Tauri v1 system packages: `libgtk-3-dev libwebkit2gtk-4.0-dev
-  libappindicator3-dev librsvg2-dev patchelf libssl-dev`. Ubuntu 24.04 dropped
-  `libwebkit2gtk-4.0-dev`, so build on 22.04 (CI does, in a container).
+- On Linux, the Tauri v2 system packages: `libgtk-3-dev libwebkit2gtk-4.1-dev
+  libayatana-appindicator3-dev libxdo-dev librsvg2-dev patchelf libssl-dev`.
+  CI and the release AppImage build on Ubuntu 22.04, in a container.
 
 Supported platforms: macOS 15 or later on Apple Silicon is the primary target,
 and its releases are signed and notarised. (mistral.rs 0.9's Metal backend uses

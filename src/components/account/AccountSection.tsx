@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { open } from '@tauri-apps/api/shell'
+import { openUrl } from '@tauri-apps/plugin-opener'
 import {
   Dialog,
   DialogContent,
@@ -23,7 +23,7 @@ function confirms(typed: string, expected: string): boolean {
 }
 
 function openAccountInBrowser() {
-  if (isTauriApp()) open(ACCOUNT_URL).catch(console.error)
+  if (isTauriApp()) openUrl(ACCOUNT_URL).catch(console.error)
   else window.open(ACCOUNT_URL, '_blank')
 }
 

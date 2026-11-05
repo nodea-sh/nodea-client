@@ -92,3 +92,21 @@ test.describe('Node phases (demo mode)', () => {
     await expect(page.locator('h1')).toHaveText('This Mac is serving the network.')
   })
 })
+
+test.describe('Node throughput chart (demo mode)', () => {
+  test('draws one bar per bucket of the selected range', async ({ page }) => {
+    await gotoPhase(page, 'serving')
+    const bars = page.getByTestId('throughput-bar')
+
+    await expect(page.getByText('Tokens · 24h')).toBeVisible()
+    await expect(bars).toHaveCount(25) // 1d: hourly
+
+    await page.getByRole('button', { name: '1h', exact: true }).click()
+    await expect(bars).toHaveCount(31) // 2-minute buckets
+    await expect(page.getByText('−60m', { exact: true })).toBeVisible()
+    await expect(page.getByText('−30m', { exact: true })).toBeVisible()
+
+    await page.getByRole('button', { name: '1w', exact: true }).click()
+    await expect(bars).toHaveCount(29) // 6-hour buckets
+  })
+})

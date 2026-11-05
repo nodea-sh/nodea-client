@@ -49,7 +49,7 @@ def test_stamps_every_file_exactly_once(tree: Path) -> None:
 
     assert result.returncode == 0, result.stderr
     assert changed_lines(tree, "package.json") == [('  "version": "0.1.0",', '  "version": "26.10.3",')]
-    assert changed_lines(tree, "src-tauri/tauri.conf.json") == [('    "version": "0.1.0"', '    "version": "26.10.3"')]
+    assert changed_lines(tree, "src-tauri/tauri.conf.json") == [('  "version": "0.1.0",', '  "version": "26.10.3",')]
     assert changed_lines(tree, "src-tauri/Cargo.toml") == [('version = "0.1.0"', 'version = "26.10.3"')]
     # Only the app's own lock entry; dependencies at 0.1.0 stay put.
     assert changed_lines(tree, "src-tauri/Cargo.lock") == [('version = "0.1.0"', 'version = "26.10.3"')]
