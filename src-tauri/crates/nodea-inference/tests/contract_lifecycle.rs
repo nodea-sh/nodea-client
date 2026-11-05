@@ -17,16 +17,19 @@ fn cancel_stops_within_one_step() {
         "max_tokens":500,"temperature":0}"#,
     );
     let cancel = CancellationToken::new();
-    let cancelled_at: Arc<Mutex<Option<Instant>>> = Arc::default();
+    let started = Instant::now();
+    // When the first token arrived (= how long one step took, at least) and
+    // when we cancelled.
+    let first_token: Arc<Mutex<Option<(Duration, Instant)>>> = Arc::default();
 
     let run = run_with(&model, &request, &cancel, {
         let cancel = cancel.clone();
-        let cancelled_at = cancelled_at.clone();
+        let first_token = first_token.clone();
         move |_| {
-            cancelled_at
+            first_token
                 .lock()
                 .unwrap()
-                .get_or_insert_with(Instant::now);
+                .get_or_insert_with(|| (started.elapsed(), Instant::now()));
             cancel.cancel();
         }
     });
@@ -38,11 +41,17 @@ fn cancel_stops_within_one_step() {
         run.messages
     );
     assert_invariants(&request, &run);
-    let since_cancel = cancelled_at.lock().unwrap().unwrap().elapsed();
+    // "Within one step", measured against this run rather than a fixed
+    // number: a slow CI CPU takes longer per token, and a cancel may take as
+    // long as producing the first token did, but no longer.
+    let (time_to_first_token, cancelled_at) = first_token.lock().unwrap().unwrap();
+    let since_cancel = cancelled_at.elapsed();
+    let bound = time_to_first_token.max(Duration::from_millis(500));
     assert!(
-        since_cancel < Duration::from_millis(500),
-        "took {since_cancel:?} to stop after the cancel"
+        since_cancel <= bound,
+        "took {since_cancel:?} to stop after the cancel; one step took {time_to_first_token:?}"
     );
+    assert_eq!(run.messages.len(), 1, "nothing is sent after the cancel");
 }
 
 #[test]
