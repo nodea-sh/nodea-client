@@ -74,7 +74,8 @@ dev: ## Run the app in development mode
 
 build: ## Build the app for production
 	@echo "🔨 Building Tauri app..."
-	npm run tauri build
+	@# Updater bundles need the release signing key, which only CI has.
+	npm run tauri build -- --config '{"bundle":{"createUpdaterArtifacts":false}}'
 	@echo "✅ Build complete"
 
 build-rust: ## Build only the Rust backend
