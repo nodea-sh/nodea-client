@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react'
-import { invoke } from '@tauri-apps/api/tauri'
+import { invoke } from '@tauri-apps/api/core'
 import { createClient } from '@supabase/supabase-js'
 import { apiClient, Organization } from '../lib/api'
 import { isTauriApp } from '../lib/platform'

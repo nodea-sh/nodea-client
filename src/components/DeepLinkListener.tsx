@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { listen } from '@tauri-apps/api/event'
+import { isTauriApp } from '@/lib/platform'
 
 /**
  * Bridges nodea:// deep links (opened from invitation/confirm-email
@@ -17,6 +18,9 @@ export function DeepLinkListener() {
   const navigate = useNavigate()
 
   useEffect(() => {
+    // A plain browser has no Tauri event bus to listen on.
+    if (!isTauriApp()) return
+
     const unlistenPromise = listen<string>('scheme-request-received', (event) => {
       try {
         const path = new URL(event.payload).pathname
