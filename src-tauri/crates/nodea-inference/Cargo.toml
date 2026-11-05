@@ -7,14 +7,11 @@ edition = "2021"
 publish = false
 
 [features]
-default = ["engine-mistralrs"]
-# Exactly one engine. Both, or neither, is a compile_error! in src/engine/mod.rs.
-engine-mistralrs = ["dep:mistralrs", "dep:indexmap", "dep:image"]
-engine-llama = ["dep:llama-cpp-4", "dep:llama-cpp-sys-4"]
+default = []
 # llama.cpp GPU backends (notes/llama-cpp-4-migration.md D3): Metal on macOS,
 # Vulkan on Windows and Linux. Without either, llama.cpp runs on the CPU.
-metal = ["llama-cpp-4?/metal"]
-vulkan = ["llama-cpp-4?/vulkan"]
+metal = ["llama-cpp-4/metal"]
+vulkan = ["llama-cpp-4/vulkan"]
 
 [dependencies]
 nodea-proto = { path = "../nodea-proto" }
@@ -22,9 +19,10 @@ nodea-proto = { path = "../nodea-proto" }
 # features: they add rpc, mtmd and dynamic-link, which we do not use, and
 # never `prebuilt` (D2, downloads binaries at build time) or `native` (D4,
 # bakes the build host's CPU into the binary).
-llama-cpp-4 = { version = "=0.11.0", default-features = false, optional = true }
-# For the log callback, which carries llama.cpp's own load errors.
-llama-cpp-sys-4 = { version = "=0.11.0", default-features = false, optional = true }
+llama-cpp-4 = { version = "=0.11.0", default-features = false }
+# For the log callback (llama.cpp reports load errors only in its log) and
+# the GPU memory probe.
+llama-cpp-sys-4 = { version = "=0.11.0", default-features = false }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio = { version = "1", features = ["full"] }
@@ -34,31 +32,11 @@ reqwest = { version = "0.11", features = ["json", "stream"] }
 sha2 = "0.10"
 toml = "0.8"
 # Total/available RAM on all three platforms (GlobalMemoryStatusEx on Windows).
-# Pinned to the version mistralrs-core already resolves to, so it is one crate.
 sysinfo = { version = "0.36.1", default-features = false, features = ["system"] }
-# Only needed to implement mistralrs::RequestLike by hand (see
-# ReasoningRequest in engine/mistralrs.rs): the trait's messages_ref() signature
-# names IndexMap, so the type has to be spellable here. Unifies with the
-# version mistralrs-core already depends on, so Cargo.lock does not move.
-indexmap = { version = "2.13", optional = true }
-# Same reason as indexmap: RequestLike::images_ref() names image::DynamicImage.
-# Pinned to the version mistralrs-core already resolves to (0.25.9) so it is the
-# same type and Cargo.lock does not move. default-features = false keeps this
-# from pulling in codec work we never do - we never supply an image.
-image = { version = "0.25.9", default-features = false, optional = true }
 
-# mistralrs's "metal" and "accelerate" features wrap Apple-only APIs
-# (Metal GPU compute, the Accelerate framework) - gate them to macOS so
-# non-macOS builds (e.g. Linux CI) don't try to compile Apple bindings.
 [target.'cfg(target_os = "macos")'.dependencies]
-# 0.9 is not published to crates.io; pin the release tag.
-mistralrs = { git = "https://github.com/EricLBuehler/mistral.rs", tag = "v0.9.5", features = ["metal", "accelerate"], optional = true }
 # Metal recommendedMaxWorkingSetSize, the GPU's memory ceiling (src/memory.rs).
-# Same version candle already links for its Metal backend.
 objc2-metal = { version = "0.3.2", features = ["MTLDevice"] }
-
-[target.'cfg(not(target_os = "macos"))'.dependencies]
-mistralrs = { git = "https://github.com/EricLBuehler/mistral.rs", tag = "v0.9.5", optional = true }
 
 [dev-dependencies]
 tempfile = "3.8"

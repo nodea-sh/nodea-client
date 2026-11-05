@@ -33,54 +33,31 @@ Other CI jobs in `ci.yml`: `scripts` (pytest over `scripts/tests/`),
 `licenses`, `fmt`, and `clippy`. A suite CI does not run is decorative — if you
 add one, wire it into `ci.yml` in the same PR.
 
-## mistralrs / mistralrs-metal-compile (Metal release build)
+## Inference (llama.cpp)
 
-`mistralrs` is a git dependency pinned to a release tag (0.9 is not published
-to crates.io). `src-tauri/vendor/mistralrs-metal-compile-<version>/` is a
-vendored, patched copy of the `mistralrs-metal-compile` crate, wired in via
-`[patch."https://github.com/EricLBuehler/mistral.rs"]` in
-`src-tauri/Cargo.toml`. This is deliberate — do not remove it or "clean up" the
-vendor directory without reading this section.
+All model logic is in `src-tauri/crates/nodea-inference` (no Tauri, no
+`.env.local`); the app's `ModelManager` only wraps it. The design and the proto
+contract it must keep are in `notes/llama-cpp-4-migration.md`.
 
-**Why it's vendored:** `mistralrs-metal-compile` builds the Metal (GPU) kernels
-for `mistralrs-core`, `mistralrs-quant` and `mistralrs-paged-attn`. Under a
-**production release build**'s heavier concurrent load (`npm run tauri build` /
-`cargo build --release`, never `cargo test` or `tauri dev`), its
-`.air -> .metallib` link subprocess can get resource-starved and produce a
-near-empty `.metallib` while still exiting 0. That leaves the model with no
-working GPU code (symptom: every chat response comes back empty, with
-`Error while loading function: fused_glu_float` or similar in the logs). The
-vendored copy adds a verify-and-retry safety net (checks every compiled
-`.metallib` defines kernel symbols via `metal-nm`, retries, and fails the build
-loudly instead of shipping a broken one). Full investigation and evidence: PR
-#161 in the upstream `ai4all-io/nodea` repo. A second bug that needed patching
-in 0.8 (the link step passing no `--sdk`/`-std` flags) is fixed upstream as of
-0.9.
-
-`src-tauri/.cargo/config.toml` sets `MISTRALRS_METAL_PLATFORMS=macos` so only
-the macOS metallibs are built — this is a macOS-only app for Metal.
-
-**macOS 15 minimum:** 0.9's candle uses `MTLResidencySet`, which does not exist
-on macOS 14, so `tauri.conf.json` sets `minimumSystemVersion` to `15.0`.
-Re-check this before any bump.
-
-**If you bump the `mistralrs` version:**
-
-1. Update the tag in both `mistralrs` entries in `src-tauri/Cargo.toml`.
-2. Copy the new tag's `mistralrs-metal-compile/` into
-   `src-tauri/vendor/mistralrs-metal-compile-<version>/`, replacing its
-   `Cargo.toml` workspace-inherited fields with concrete values from the
-   upstream workspace `Cargo.toml` (including the candle git rev).
-3. Re-apply the `NODEA PATCH` changes in `src/lib.rs` (the
-   `compile_platform_verified` wrapper and `metallib_has_symbols`) and update
-   `PATCHES.md`.
-4. Update the path in the `[patch."https://github.com/EricLBuehler/mistral.rs"]`
-   section.
-5. **Verify on a real production build before merging** — `npm run tauri build`,
-   then run an actual chat message through the built `.app`. `cargo test` and
-   `tauri dev` cannot catch the bug.
-6. If a future version fixes this upstream, confirm with a real release-build
-   test first, then the vendor directory and patch entry can be deleted.
+- **Iterate without the app.** `make fetch-test-models` (pinned GGUFs, about
+  1.5 GB), then `make test-inference` for the contract suite, or
+  `make infer MODEL=tools REQ=crates/nodea-inference/examples/requests/tools-weather.json`
+  to see the exact `GeneratedText` messages (`ARGS=--show-prompt` shows the
+  rendered template and grammar). CI runs the suite in the `inference` job.
+- **Every new behaviour needs a contract test** in
+  `crates/nodea-inference/tests/contract_*.rs` that calls
+  `support::assert_invariants`, and a new capability needs a row in
+  `support::CAPABILITY_TESTS`.
+- **`llama-cpp-4` is pinned exactly** (`=0.11.0`) because its API breaks between
+  minor versions. Bump it deliberately, behind the contract suite, together
+  with `llama-cpp-sys-4`. Never enable its `prebuilt` (downloads binaries at
+  build time) or `native` (bakes the build CPU into the binary) features.
+- **Templates and tool calls are llama.cpp's** (`llama_cpp_4::chat`). Do not
+  parse model-specific markers in our code.
+- **GPU backends:** macOS always builds Metal (shaders embedded in the binary);
+  Windows and Linux release builds pass `--features vulkan`. Dev and CI builds
+  elsewhere are CPU only. A real GPU run is the manual release checklist in
+  the spec (§8.8): `cargo test` cannot cover it.
 
 ## No extra documentation by default
 

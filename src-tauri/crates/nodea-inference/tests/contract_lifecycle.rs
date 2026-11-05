@@ -55,10 +55,6 @@ fn cancel_stops_within_one_step() {
 }
 
 #[test]
-#[cfg_attr(
-    feature = "engine-mistralrs",
-    ignore = "mistralrs sizes its own context and ignores LoadOptions::n_ctx"
-)]
 fn prompt_longer_than_context_fails_cleanly() {
     let Some(path) = model_path("smoke") else {
         return;

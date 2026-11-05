@@ -54,10 +54,6 @@ fn json_schema_is_enforced() {
 }
 
 #[test]
-#[cfg_attr(
-    feature = "engine-mistralrs",
-    ignore = "mistralrs's forced (required) tool call repeats the same call several times"
-)]
 fn tool_call_is_parsed_into_openai_shape() {
     let Some(model) = model("tools") else { return };
     let request = req(&format!(
@@ -102,10 +98,6 @@ fn named_tool_choice_forces_that_tool() {
 }
 
 #[test]
-#[cfg_attr(
-    feature = "engine-mistralrs",
-    ignore = "with tool_choice none, mistralrs passes the model's raw <tool_call> markup through as text"
-)]
 fn tool_choice_none_answers_in_prose() {
     let Some(model) = model("tools") else { return };
     let request = req(&format!(

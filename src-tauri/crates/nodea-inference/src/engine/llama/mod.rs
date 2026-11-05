@@ -22,12 +22,6 @@ use std::path::Path;
 use std::sync::{Arc, Mutex, OnceLock};
 use tokio_util::sync::CancellationToken;
 
-/// Web search was a mistralrs feature; this engine has none, so the node
-/// never advertises it and refuses `web_search_options`.
-pub fn web_search_enabled() -> bool {
-    false
-}
-
 /// llama.cpp must be initialised exactly once per process, test binaries
 /// included.
 fn backend() -> &'static LlamaBackend {

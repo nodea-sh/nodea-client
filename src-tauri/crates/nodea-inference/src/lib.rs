@@ -13,6 +13,6 @@ pub mod types;
 pub mod wire;
 
 pub use capabilities::node_capabilities;
-pub use engine::{web_search_enabled, Model};
+pub use engine::Model;
 pub use nodea_proto as proto;
 pub use types::*;

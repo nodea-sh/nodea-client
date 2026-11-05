@@ -14,7 +14,7 @@
 /// not contain rather than silently answering as if the field had not been
 /// sent.
 pub fn node_capabilities() -> Vec<String> {
-    let mut capabilities = vec![
+    vec![
         "structured_messages".to_string(),
         "terminal_metadata".to_string(),
         "response_format".to_string(),
@@ -30,16 +30,12 @@ pub fn node_capabilities() -> Vec<String> {
         // reassign it after connect. Nodes without it keep connect-time-only
         // assignment.
         "scheduler_v1".to_string(),
-    ];
-
-    // Web search needs an embedding model download and network egress at load
-    // time, so it is a deployment decision rather than something every node
-    // can do. Only claim it when the node was actually started with it on.
-    if crate::web_search_enabled() {
-        capabilities.push("web_search".to_string());
-    }
-
-    capabilities
+        // The node runs llama.cpp, so it loads every GGUF architecture
+        // llama.cpp does - not only the eight the previous engine could. During the
+        // rollout the backend offers the wider catalog only to nodes that
+        // report this (notes/llama-cpp-4-migration.md §9).
+        "llama_cpp_engine".to_string(),
+    ]
 }
 
 #[cfg(test)]
@@ -64,6 +60,7 @@ mod tests {
             "reasoning_effort",
             "cancel",
             "scheduler_v1",
+            "llama_cpp_engine",
         ] {
             assert!(
                 capabilities.contains(&expected.to_string()),
@@ -73,12 +70,9 @@ mod tests {
     }
 
     #[test]
-    fn web_search_is_not_claimed_unless_it_was_enabled() {
-        // It needs an embedding model download and network egress at load
-        // time, so claiming it unconditionally would make the backend route
-        // search requests to a node that cannot serve them.
-        if !crate::web_search_enabled() {
-            assert!(!node_capabilities().contains(&"web_search".to_string()));
-        }
+    fn web_search_is_never_claimed() {
+        // The engine has no web search, and the backend would route search
+        // requests to a node that claimed it.
+        assert!(!node_capabilities().contains(&"web_search".to_string()));
     }
 }

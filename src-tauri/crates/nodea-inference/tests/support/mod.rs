@@ -460,9 +460,13 @@ pub const CAPABILITY_TESTS: &[(&str, &[&str])] = &[
     ),
     // App-level: the reload path is driven with a fake model slot.
     ("scheduler_v1", &["src-tauri/src/reload.rs tests"]),
-    // Only advertised when NODEA_ENABLE_WEB_SEARCH is set on mistralrs.
+    // The backend routes architectures beyond the previous engine's list only
+    // to nodes that report this (notes/llama-cpp-4-migration.md §9).
     (
-        "web_search",
-        &["contract_chat::web_search_options_is_rejected"],
+        "llama_cpp_engine",
+        &[
+            "contract_chat::new_arch_lfm2_chats",
+            "contract_chat::new_arch_gemma3_chats",
+        ],
     ),
 ];

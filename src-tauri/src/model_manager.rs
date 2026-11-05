@@ -11,9 +11,8 @@ use tokio_util::sync::CancellationToken;
 
 pub use nodea_inference::download::{download_model_to, DownloadProgress, DownloadTimeouts};
 pub use nodea_inference::{
-    describe_prompt, web_search_enabled, ChatTurn, GenerationOptions, GenerationOutcome,
-    GenerationUsage, LoadOptions, TokenUpdate, DEFAULT_MAX_TOKENS, DEFAULT_SYSTEM_PROMPT,
-    DEFAULT_TEMPERATURE,
+    describe_prompt, ChatTurn, GenerationOptions, GenerationOutcome, GenerationUsage, LoadOptions,
+    TokenUpdate, DEFAULT_MAX_TOKENS, DEFAULT_SYSTEM_PROMPT, DEFAULT_TEMPERATURE,
 };
 
 pub struct ModelManager {

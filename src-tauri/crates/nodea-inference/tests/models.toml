@@ -21,7 +21,7 @@ size     = 396705472
 sha256   = "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a"
 arch     = "qwen3"
 
-[lfm2]    # an architecture mistralrs cannot load (LiquidAI, dropped by nodea #302)
+[lfm2]    # an architecture the previous engine could not load (LiquidAI, dropped by nodea #302)
 repo     = "LiquidAI/LFM2-350M-GGUF"
 revision = "8fdc9d526b7ed346b19257551b05816c7912ecc2"
 file     = "LFM2-350M-Q4_K_M.gguf"

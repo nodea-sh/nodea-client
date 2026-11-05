@@ -26,7 +26,8 @@ jobs:
       - name: Install base tooling
         run: |
           apt-get update
-          apt-get install -y curl wget file git ca-certificates build-essential pkg-config
+          apt-get install -y curl wget file git ca-certificates build-essential pkg-config \
+            cmake clang libclang-dev
 
       - name: Install Tauri system dependencies
         run: |
@@ -66,20 +67,9 @@ jobs:
 
   # The model logic on its own: crates/nodea-inference against real GGUFs, with
   # no Tauri, webkit or .env.local. See notes/llama-cpp-4-migration.md §8.
-  # Phase 2: the same suite on both engines. A test only one engine can pass
-  # is ignored on the other with its reason (cfg_attr ignore).
   inference:
-    name: inference (${{ matrix.engine }})
     runs-on: ubuntu-latest
     container: ubuntu:22.04
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - engine: mistralrs
-            features: ''
-          - engine: llama
-            features: --no-default-features --features engine-llama
     steps:
       - name: Install base tooling
         run: |
@@ -95,8 +85,8 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-          key: cargo-inference-${{ matrix.engine }}-${{ hashFiles('src-tauri/Cargo.lock') }}
-          restore-keys: cargo-inference-${{ matrix.engine }}-
+          key: cargo-inference-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: cargo-inference-
 
       # About 1.5 GB for all four models. The key is the manifest, so a
       # change to a pinned model refetches.
@@ -107,23 +97,22 @@ jobs:
 
       - name: Fetch test models
         working-directory: src-tauri
-        run: cargo run -p nodea-inference ${{ matrix.features }} --bin fetch-test-models
+        run: cargo run -p nodea-inference --bin fetch-test-models
 
       - name: cargo test -p nodea-inference
         working-directory: src-tauri
         env:
           NODEA_REQUIRE_TEST_MODELS: '1'
-        run: cargo test -p nodea-inference ${{ matrix.features }}
+        run: cargo test -p nodea-inference
 
       - name: Disk usage
         if: always()
         run: df -h / && du -sh src-tauri/target .cache/test-models || true
 
-  # The llama engine with Metal compiled in. Hosted macOS runners are VMs
-  # with a paravirtual GPU, and a non-interactive process cannot create a
-  # Metal device anyway, so the fixtures load with n_gpu_layers = 0: this job
-  # proves the Metal build compiles and links, and that the suite passes on
-  # the macOS CPU path. Metal inference itself is the manual release check.
+  # Metal compiled in. Hosted macOS runners are VMs with a paravirtual GPU,
+  # so the fixtures load with n_gpu_layers = 0: this proves the Metal build
+  # compiles and links (shaders embedded) and that the suite passes on macOS.
+  # Metal inference itself is the manual release check.
   inference-macos:
     runs-on: macos-14
     steps:
@@ -146,13 +135,109 @@ jobs:
 
       - name: Fetch test models
         working-directory: src-tauri
-        run: cargo run -p nodea-inference --no-default-features --features engine-llama --bin fetch-test-models
+        run: cargo run -p nodea-inference --bin fetch-test-models
 
-      - name: cargo test -p nodea-inference (llama, metal)
+      - name: cargo test -p nodea-inference --features metal
         working-directory: src-tauri
         env:
           NODEA_REQUIRE_TEST_MODELS: '1'
-        run: cargo test -p nodea-inference --no-default-features --features engine-llama,metal
+        run: cargo test -p nodea-inference --features metal
+
+  # The Vulkan builds the release ships for Linux and Windows. The release
+  # workflow only runs from main, so without these a broken Vulkan build would
+  # first show up when cutting a release. Runners have no GPU: Linux uses
+  # Mesa's software Vulkan device (lavapipe) to run one generation through the
+  # Vulkan backend, and both run the CPU path of a Vulkan build, which is what
+  # a user without a usable GPU gets.
+  inference-vulkan-linux:
+    runs-on: ubuntu-latest
+    container: ubuntu:22.04
+    steps:
+      - name: Install base tooling and the Vulkan SDK
+        run: |
+          apt-get update
+          apt-get install -y build-essential cmake clang libclang-dev git curl wget gnupg \
+            ca-certificates pkg-config libssl-dev mesa-vulkan-drivers
+          # LunarG's jammy packages: glslc, headers and SPIRV-Headers, which
+          # 22.04's own packages are too old to provide.
+          wget -qO- https://packages.lunarg.com/lunarg-signing-key-pub.asc \
+            | gpg --dearmor -o /usr/share/keyrings/lunarg.gpg
+          echo "deb [signed-by=/usr/share/keyrings/lunarg.gpg] https://packages.lunarg.com/vulkan jammy main" \
+            > /etc/apt/sources.list.d/lunarg-vulkan-jammy.list
+          apt-get update
+          apt-get install -y vulkan-sdk
+
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: cargo-inference-vulkan-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: cargo-inference-vulkan-
+
+      - uses: actions/cache@v4
+        with:
+          path: .cache/test-models
+          key: test-models-${{ hashFiles('src-tauri/crates/nodea-inference/tests/models.toml') }}
+
+      - name: Fetch test models
+        working-directory: src-tauri
+        run: cargo run -p nodea-inference --features vulkan --bin fetch-test-models
+
+      - name: cargo test -p nodea-inference --features vulkan (CPU path)
+        working-directory: src-tauri
+        env:
+          NODEA_REQUIRE_TEST_MODELS: '1'
+        run: cargo test -p nodea-inference --features vulkan
+
+      - name: One generation on the Vulkan backend (lavapipe)
+        working-directory: src-tauri
+        env:
+          NODEA_LLAMA_LOG: '1'
+        run: |
+          cargo run -p nodea-inference --features vulkan --bin nodea-infer -- \
+            --model smoke --prompt "Say hello." --gpu-layers 99 --format pretty --bench 2>&1 \
+            | tee infer.log
+          grep -q "offloaded" infer.log
+          grep -q "finish_reason" infer.log
+
+  inference-vulkan-windows:
+    runs-on: windows-latest
+    env:
+      VULKAN_VERSION: 1.4.309.0
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install the Vulkan SDK
+        shell: pwsh
+        run: |
+          curl.exe -sSL -o "$env:RUNNER_TEMP\VulkanSDK.exe" "https://sdk.lunarg.com/sdk/download/$env:VULKAN_VERSION/windows/VulkanSDK-$env:VULKAN_VERSION-Installer.exe"
+          & "$env:RUNNER_TEMP\VulkanSDK.exe" --accept-licenses --default-answer --confirm-command install
+          Add-Content $env:GITHUB_ENV "VULKAN_SDK=C:\VulkanSDK\$env:VULKAN_VERSION"
+          Add-Content $env:GITHUB_PATH "C:\VulkanSDK\$env:VULKAN_VERSION\Bin"
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: cargo-inference-windows-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: cargo-inference-windows-
+
+      - name: Fetch the smoke model
+        working-directory: src-tauri
+        run: cargo run -p nodea-inference --features vulkan --bin fetch-test-models -- --only smoke
+
+      # Starts, finds no Vulkan GPU on the runner, and generates on the CPU.
+      - name: One generation from the Vulkan build
+        working-directory: src-tauri
+        run: cargo run -p nodea-inference --features vulkan --bin nodea-infer -- --model smoke --prompt "Say hello." --format pretty --bench
 
   frontend:
     runs-on: ubuntu-latest
@@ -276,7 +361,8 @@ jobs:
       - name: Install base tooling
         run: |
           apt-get update
-          apt-get install -y curl wget file git ca-certificates build-essential pkg-config
+          apt-get install -y curl wget file git ca-certificates build-essential pkg-config \
+            cmake clang libclang-dev
 
       - name: Install Tauri system dependencies
         run: |

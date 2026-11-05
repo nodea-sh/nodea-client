@@ -93,7 +93,8 @@ jobs:
         if: matrix.platform == 'linux'
         run: |
           apt-get update
-          apt-get install -y curl wget file git ca-certificates build-essential pkg-config
+          apt-get install -y curl wget file git ca-certificates build-essential pkg-config \
+            cmake clang libclang-dev gnupg
 
       - name: Checkout code
         uses: actions/checkout@v4
@@ -114,6 +115,34 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
+
+      # llama.cpp is built from source. Windows and Linux ship its Vulkan
+      # backend, which runs on NVIDIA, AMD and Intel GPUs through the driver's
+      # own Vulkan loader, so nothing GPU-specific is bundled; without a usable
+      # GPU it falls back to the CPU. macOS builds Metal (no SDK needed).
+      # LunarG's jammy packages provide glslc and SPIRV-Headers, which
+      # 22.04's own packages are too old for.
+      - name: Install the Vulkan SDK (Linux)
+        if: matrix.platform == 'linux'
+        run: |
+          set -eu
+          wget -qO- https://packages.lunarg.com/lunarg-signing-key-pub.asc \
+            | gpg --dearmor -o /usr/share/keyrings/lunarg.gpg
+          echo "deb [signed-by=/usr/share/keyrings/lunarg.gpg] https://packages.lunarg.com/vulkan jammy main" \
+            > /etc/apt/sources.list.d/lunarg-vulkan-jammy.list
+          apt-get update
+          apt-get install -y vulkan-sdk
+
+      - name: Install the Vulkan SDK (Windows)
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        env:
+          VULKAN_VERSION: 1.4.309.0
+        run: |
+          curl.exe -sSL -o "$env:RUNNER_TEMP\VulkanSDK.exe" "https://sdk.lunarg.com/sdk/download/$env:VULKAN_VERSION/windows/VulkanSDK-$env:VULKAN_VERSION-Installer.exe"
+          & "$env:RUNNER_TEMP\VulkanSDK.exe" --accept-licenses --default-answer --confirm-command install
+          Add-Content $env:GITHUB_ENV "VULKAN_SDK=C:\VulkanSDK\$env:VULKAN_VERSION"
+          Add-Content $env:GITHUB_PATH "C:\VulkanSDK\$env:VULKAN_VERSION\Bin"
 
       # Every runner is GitHub-hosted and has no persistent disk, so unlike the
       # monorepo this caches on all three platforms.
@@ -300,8 +329,14 @@ jobs:
             # --verbose makes the bundler print the codesign error it would
             # otherwise collapse into "failed to sign app".
             npm run tauri build -- --verbose
+          elif [ "${{ matrix.platform }}" = "windows" ]; then
+            npm run tauri build -- --features vulkan
           else
-            npm run tauri build
+            # libvulkan.so.1 is the system's loader, which finds the user's
+            # GPU driver; a bundled copy would not. linuxdeploy must still be
+            # able to resolve it, so it is excluded rather than missing.
+            export LINUXDEPLOY_EXCLUDED_LIBRARIES='libvulkan.so*'
+            npm run tauri build -- --features vulkan
           fi
 
       # tauri-bundler notarises and staples the .app, then builds the DMG from
@@ -368,6 +403,25 @@ jobs:
           fi
           rm -f "${NODEA_NOTARY_KEY:-}"
           echo "signing keychain and notary key removed"
+
+      # The one way the Linux Vulkan bundle breaks only on a user's machine:
+      # a bundled Vulkan loader, which cannot find the user's GPU driver, so
+      # everything silently runs on the CPU.
+      - name: Check the AppImage leaves the Vulkan loader to the system
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          APPDIR=$(find src-tauri/target/release/bundle/appimage -maxdepth 1 -type d -name '*.AppDir' | head -1)
+          if [ -z "$APPDIR" ]; then
+            echo "::error::No AppDir under src-tauri/target/release/bundle/appimage"
+            exit 1
+          fi
+          if [ -n "$(find "$APPDIR" -name 'libvulkan.so*' -print -quit)" ]; then
+            echo "::error::libvulkan is bundled - it must come from the user's system"
+            exit 1
+          fi
+          echo "Vulkan loader left to the system"
 
       - name: Stage the bundle
         shell: bash

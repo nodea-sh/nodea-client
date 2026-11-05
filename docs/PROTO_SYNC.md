@@ -5,7 +5,7 @@ the Nodea backend. The backend lives in a separate, private repository (the back
 repository is the **source of truth**: it generates the Python stubs from the same
 file.
 
-The copy in this repo is vendored. `src-tauri/build.rs` compiles it with
+The copy in this repo is vendored. `src-tauri/crates/nodea-proto/build.rs` compiles it with
 [`protoc-bin-vendored`](https://crates.io/crates/protoc-bin-vendored), so a bare
 `git clone && cargo build` needs no `protoc` on the system.
 

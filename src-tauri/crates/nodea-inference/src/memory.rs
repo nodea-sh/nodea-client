@@ -11,12 +11,17 @@
 //!   figure that needs a per-platform probe:
 //!   - macOS: Metal `recommendedMaxWorkingSetSize` - the GPU's share of
 //!     unified memory on Apple Silicon, or the dGPU's VRAM on Intel + AMD.
-//!   - Linux and Windows: `None`. Those builds compile mistralrs without CUDA
-//!     (see Cargo.toml), so inference runs on the CPU and system RAM binds;
-//!     reporting VRAM there would size the node for memory it cannot use.
+//!   - Linux and Windows with the `vulkan` feature (the release builds): the
+//!     total memory of the largest GPU ggml found, from llama.cpp's own device
+//!     list - a discrete GPU if there is one, else an integrated one. `None`
+//!     when there is no usable Vulkan device, because llama.cpp then runs on
+//!     the CPU.
+//!   - CPU-only builds (dev, CI): `None`. Inference runs on the CPU and system
+//!     RAM binds; reporting VRAM there would size the node for memory it
+//!     cannot use.
 //!
-//! CI (`test-rust`) runs on Linux only, so the macOS and Windows branches are
-//! not exercised there and need a real check on each platform.
+//! CI runs on Linux without a GPU, so the GPU branches need a real check on
+//! each platform (the manual release checklist).
 
 /// Memory figures in megabytes, as sent in `DeviceIdentity` fields 8-10.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -53,7 +58,43 @@ fn accelerator_memory_bytes() -> Option<u64> {
         .filter(|bytes| *bytes > 0)
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(all(not(target_os = "macos"), feature = "vulkan"))]
+fn accelerator_memory_bytes() -> Option<u64> {
+    use llama_cpp_sys_4::{
+        ggml_backend_dev_count, ggml_backend_dev_get, ggml_backend_dev_memory,
+        ggml_backend_dev_type, GGML_BACKEND_DEVICE_TYPE_GPU, GGML_BACKEND_DEVICE_TYPE_IGPU,
+    };
+
+    let mut discrete = 0u64;
+    let mut integrated = 0u64;
+    // SAFETY: the device list is ggml's static registry; every index below
+    // `ggml_backend_dev_count()` is a valid device, and the out-pointers are
+    // stack locals.
+    unsafe {
+        for i in 0..ggml_backend_dev_count() {
+            let device = ggml_backend_dev_get(i);
+            if device.is_null() {
+                continue;
+            }
+            let (mut free, mut total) = (0usize, 0usize);
+            ggml_backend_dev_memory(device, &mut free, &mut total);
+            // The enum's integer type differs by platform.
+            #[allow(clippy::unnecessary_cast)]
+            match ggml_backend_dev_type(device) as u32 {
+                kind if kind == GGML_BACKEND_DEVICE_TYPE_GPU as u32 => {
+                    discrete = discrete.max(total as u64)
+                }
+                kind if kind == GGML_BACKEND_DEVICE_TYPE_IGPU as u32 => {
+                    integrated = integrated.max(total as u64)
+                }
+                _ => {}
+            }
+        }
+    }
+    [discrete, integrated].into_iter().find(|bytes| *bytes > 0)
+}
+
+#[cfg(all(not(target_os = "macos"), not(feature = "vulkan")))]
 fn accelerator_memory_bytes() -> Option<u64> {
     None
 }
@@ -122,7 +163,7 @@ mod tests {
         );
     }
 
-    #[cfg(target_os = "linux")]
+    #[cfg(all(target_os = "linux", not(feature = "vulkan")))]
     #[test]
     fn linux_cpu_build_reports_no_accelerator() {
         assert_eq!(probe().accelerator_memory_mb, None);

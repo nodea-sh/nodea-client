@@ -27,6 +27,20 @@ fi
   echo "edit it by hand."
   echo
   (cd src-tauri && cargo about generate --locked --fail about.hbs)
+  # llama.cpp and ggml are C++ compiled into the binary from the source
+  # vendored in llama-cpp-sys-4, so cargo-about only sees the Rust crate's
+  # licence. Their own MIT notice ships too.
+  sys_dir=$(cd src-tauri && cargo metadata --locked --format-version 1 \
+    | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const p=JSON.parse(s).packages.find(p=>p.name==="llama-cpp-sys-4");process.stdout.write(require("path").dirname(p.manifest_path))})')
+  echo
+  echo "## llama.cpp and ggml"
+  echo
+  echo "Compiled into the binary from the source vendored in llama-cpp-sys-4."
+  echo
+  echo '```'
+  cat "$sys_dir/llama.cpp/LICENSE"
+  echo '```'
+  echo
   npx --yes "license-checker@${LICENSE_CHECKER_VERSION}" --production --json \
     | node scripts/npm-licenses.mjs
 } > "$out.tmp"

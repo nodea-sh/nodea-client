@@ -21,10 +21,6 @@ fn plain_chat_streams_and_stops() {
 }
 
 #[test]
-#[cfg_attr(
-    feature = "engine-mistralrs",
-    ignore = "mistralrs renders the template internally and never shows it"
-)]
 fn whole_conversation_reaches_the_template() {
     // Regression guard: the node used to take messages.last() only, so a
     // multi-turn request lost its system prompt and all history.
@@ -61,10 +57,6 @@ fn whole_conversation_reaches_the_template() {
 }
 
 #[test]
-#[cfg_attr(
-    feature = "engine-mistralrs",
-    ignore = "mistralrs renders the template internally and never shows it"
-)]
 fn default_system_prompt_only_when_none_sent() {
     let Some(model) = model("tools") else { return };
 
@@ -150,10 +142,6 @@ fn utf8_is_never_split() {
 }
 
 #[test]
-#[cfg_attr(
-    feature = "engine-mistralrs",
-    ignore = "mistralrs repeats usage on every choice's terminal, not only the final message"
-)]
 fn n_choices_are_indexed_and_terminated() {
     let Some(model) = model("smoke") else { return };
     let request = req(r#"{"messages":[{"role":"user","content":"Name a colour."}],
@@ -179,10 +167,6 @@ fn n_choices_are_indexed_and_terminated() {
 }
 
 #[test]
-#[cfg_attr(
-    feature = "engine-mistralrs",
-    ignore = "mistralrs seeds one RNG per engine and has no per-request seed"
-)]
 fn same_seed_same_output() {
     let Some(model) = model("smoke") else { return };
     let request = req(
@@ -198,10 +182,6 @@ fn same_seed_same_output() {
 }
 
 #[test]
-#[cfg_attr(
-    feature = "engine-mistralrs",
-    ignore = "mistralrs does not expose its tokenizer, so the banned id is unknown"
-)]
 fn logit_bias_bans_a_token() {
     let Some(model) = model("smoke") else { return };
     let paris = model.tokenize(" Paris").unwrap();
@@ -219,10 +199,6 @@ fn logit_bias_bans_a_token() {
 }
 
 #[test]
-#[cfg_attr(
-    feature = "engine-mistralrs",
-    ignore = "mistralrs does not report its vocabulary size"
-)]
 fn out_of_vocab_logit_bias_is_an_error() {
     let Some(model) = model("smoke") else { return };
     let n_vocab = model.info().n_vocab.expect("the engine reports n_vocab");
@@ -260,10 +236,6 @@ fn unsupported_reasoning_effort_is_an_error() {
 }
 
 #[test]
-#[cfg_attr(
-    feature = "engine-mistralrs",
-    ignore = "mistralrs serves web_search_options when the node enables search"
-)]
 fn web_search_options_is_rejected() {
     let Some(model) = model("smoke") else { return };
     let request = req(
@@ -282,19 +254,11 @@ fn web_search_options_is_rejected() {
 }
 
 #[test]
-#[cfg_attr(
-    feature = "engine-mistralrs",
-    ignore = "mistralrs 0.9.5 cannot load the lfm2 architecture"
-)]
 fn new_arch_lfm2_chats() {
     new_architecture_chats("lfm2");
 }
 
 #[test]
-#[cfg_attr(
-    feature = "engine-mistralrs",
-    ignore = "mistralrs 0.9.5 cannot load the gemma3 architecture"
-)]
 fn new_arch_gemma3_chats() {
     new_architecture_chats("gemma3");
 }
