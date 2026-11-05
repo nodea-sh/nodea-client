@@ -1,2 +1,2 @@
 {"messages":[{"role":"system","content":"You are terse."},{"role":"user","content":"What is the capital of Norway?"}],
- "max_tokens":32,"temperature":0}
+ "max_tokens":400,"temperature":0}

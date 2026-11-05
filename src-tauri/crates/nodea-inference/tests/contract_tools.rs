@@ -36,7 +36,7 @@ fn json_object_produces_an_object() {
 fn json_schema_is_enforced() {
     let Some(model) = model("tools") else { return };
     let request = req(r#"{"messages":[{"role":"user",
-        "content":"Invent a person. /no_think"}],
+        "content":"Invent a fictional person. Reply with JSON giving their first name and their age. /no_think"}],
         "max_tokens":96,"temperature":0,
         "response_format":{"type":"json_schema","json_schema":{"name":"person",
           "schema":{"type":"object","properties":{"name":{"type":"string"},"age":{"type":"integer"}},

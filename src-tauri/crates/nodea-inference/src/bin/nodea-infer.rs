@@ -5,6 +5,7 @@
 //!     --model smoke|tools|lfm2|gemma3|/path/to/file.gguf \
 //!     --request request.json | --prompt "text" \
 //!     [--n-ctx 4096] [--gpu-layers N] [--format jsonl|pretty] [--show-prompt] [--bench]
+//!     [--compare]
 //!
 //! No Tauri, no gRPC server, no GPU required (`--gpu-layers 0`).
 
@@ -19,7 +20,7 @@ use tokio_util::sync::CancellationToken;
 const USAGE: &str =
     "usage: nodea-infer --model <name|path.gguf> (--request <file.json> | --prompt <text>)
                    [--n-ctx N] [--gpu-layers N] [--format jsonl|pretty] [--pretty]
-                   [--show-prompt] [--bench]
+                   [--show-prompt] [--bench] [--compare]
 
   --model        a test model name from tests/models.toml (smoke, tools, lfm2, gemma3)
                  or a path to a GGUF
@@ -29,7 +30,9 @@ const USAGE: &str =
   --format       jsonl (default): one GeneratedText per line, as on the wire
                  pretty: the text as it streams, then a summary per choice
   --show-prompt  print ModelInfo and the rendered prompt and grammar first
-  --bench        print load time, time to first token and tokens/s";
+  --bench        print load time, time to first token and tokens/s
+  --compare      run the request on both engines (two `cargo run`s, one per engine
+                 feature) and print their summaries side by side";
 
 #[derive(PartialEq)]
 enum Format {
@@ -45,6 +48,7 @@ struct Args {
     format: Format,
     show_prompt: bool,
     bench: bool,
+    compare: bool,
 }
 
 fn parse_args() -> Result<Args, String> {
@@ -59,6 +63,7 @@ fn parse_args() -> Result<Args, String> {
         format: Format::Jsonl,
         show_prompt: false,
         bench: false,
+        compare: false,
     };
     let mut it = std::env::args().skip(1);
     while let Some(flag) = it.next() {
@@ -82,6 +87,7 @@ fn parse_args() -> Result<Args, String> {
             "--pretty" => args.format = Format::Pretty,
             "--show-prompt" => args.show_prompt = true,
             "--bench" => args.bench = true,
+            "--compare" => args.compare = true,
             "-h" | "--help" => return Err(String::new()),
             other => return Err(format!("unknown argument {other:?}")),
         }
@@ -134,7 +140,12 @@ async fn main() {
             std::process::exit(2);
         }
     };
-    if let Err(error) = run(args).await {
+    let result = if args.compare {
+        compare()
+    } else {
+        run(args).await
+    };
+    if let Err(error) = result {
         eprintln!("error: {error}");
         std::process::exit(1);
     }
@@ -268,4 +279,92 @@ async fn run(args: Args) -> Result<(), String> {
     }
 
     outcome.map(|_| ())
+}
+
+/// The engines `--compare` runs, as the cargo feature flags that select them.
+const ENGINES: &[(&str, &[&str])] = &[
+    ("mistralrs", &[]),
+    (
+        "llama",
+        &["--no-default-features", "--features", "engine-llama"],
+    ),
+];
+
+/// Run this same invocation once per engine and summarise each side by side.
+fn compare() -> Result<(), String> {
+    let forwarded: Vec<String> = std::env::args()
+        .skip(1)
+        .filter(|arg| arg != "--compare")
+        .collect();
+    let mut columns = Vec::new();
+
+    for (engine, features) in ENGINES {
+        eprintln!("--- running on {engine}");
+        // The caller's working directory is kept, so relative paths in the
+        // arguments still resolve.
+        let manifest = concat!(env!("CARGO_MANIFEST_DIR"), "/Cargo.toml");
+        let output = std::process::Command::new(env!("CARGO"))
+            .args(["run", "-q", "--manifest-path", manifest])
+            .args(*features)
+            .args(["--bin", "nodea-infer", "--"])
+            .args(&forwarded)
+            .args(["--format", "jsonl"])
+            .stderr(std::process::Stdio::inherit())
+            .output()
+            .map_err(|e| format!("could not run cargo: {e}"))?;
+        // mistralrs's own logging shares stdout; the wire messages are the
+        // lines that parse as GeneratedText.
+        let messages: Vec<GeneratedText> = String::from_utf8_lossy(&output.stdout)
+            .lines()
+            .filter_map(|line| serde_json::from_str(line).ok())
+            .collect();
+        let summary = if messages.is_empty() && !output.status.success() {
+            format!("error: the {engine} run failed ({})", output.status)
+        } else {
+            summarise(&messages)
+        };
+        columns.push((engine, summary));
+    }
+
+    for (engine, summary) in &columns {
+        println!("==== {engine}");
+        println!("{summary}");
+    }
+    Ok(())
+}
+
+fn summarise(messages: &[GeneratedText]) -> String {
+    if let Some(error) = messages.iter().find_map(|m| m.error.as_deref()) {
+        return format!("error: {error}");
+    }
+    let mut choices: BTreeMap<u32, (String, Option<String>, Option<String>, usize)> =
+        BTreeMap::new();
+    for message in messages {
+        let entry = choices
+            .entry(message.choice_index.unwrap_or(0))
+            .or_default();
+        entry.0.push_str(&message.text);
+        entry.3 += usize::from(message.logprobs.is_some());
+        if message.finish_reason.is_some() {
+            entry.1 = message.finish_reason.clone();
+            entry.2 = message.tool_calls.clone();
+        }
+    }
+    let mut out = String::new();
+    for (choice, (text, finish, tool_calls, logprobs)) in choices {
+        out.push_str(&format!(
+            "choice {choice}: finish_reason {:?}, {logprobs} logprobs chunks\n  text: {text:?}\n",
+            finish.as_deref().unwrap_or("-")
+        ));
+        if let Some(calls) = tool_calls {
+            out.push_str(&format!("  tool_calls: {calls}\n"));
+        }
+    }
+    if let Some(usage) = messages.iter().find_map(|m| m.usage.clone()) {
+        out.push_str(&format!(
+            "usage: {} prompt, {} completion tokens",
+            usage.prompt_tokens, usage.completion_tokens
+        ));
+    }
+    out
 }

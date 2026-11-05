@@ -9,10 +9,21 @@
 //! - `Model::tokenize(text) -> Result<Vec<u32>, String>`
 //! - `Model::generate_streaming(turns, options, cancel, callback)` (async)
 
-#[cfg(not(feature = "engine-mistralrs"))]
-compile_error!("enable the `engine-mistralrs` feature");
+#[cfg(all(feature = "engine-mistralrs", feature = "engine-llama"))]
+compile_error!(
+    "enable exactly one of the `engine-mistralrs` and `engine-llama` features \
+     (for llama: --no-default-features --features engine-llama)"
+);
+
+#[cfg(not(any(feature = "engine-mistralrs", feature = "engine-llama")))]
+compile_error!("enable one of the `engine-mistralrs` and `engine-llama` features");
 
 #[cfg(feature = "engine-mistralrs")]
 pub mod mistralrs;
 #[cfg(feature = "engine-mistralrs")]
 pub use self::mistralrs::{web_search_enabled, Model};
+
+#[cfg(feature = "engine-llama")]
+pub mod llama;
+#[cfg(feature = "engine-llama")]
+pub use self::llama::{web_search_enabled, Model};

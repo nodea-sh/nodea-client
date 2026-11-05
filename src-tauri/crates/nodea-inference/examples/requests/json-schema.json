@@ -1,4 +1,4 @@
-{"messages":[{"role":"user","content":"Invent a person. /no_think"}],
+{"messages":[{"role":"user","content":"Invent a fictional person. Reply with JSON giving their first name and their age. /no_think"}],
  "max_tokens":96,"temperature":0,
  "response_format":{"type":"json_schema","json_schema":{"name":"person",
    "schema":{"type":"object","properties":{"name":{"type":"string"},"age":{"type":"integer"}},
