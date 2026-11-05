@@ -1,6 +1,7 @@
 // Prevents additional console window on Windows in release
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod app_updater;
 mod auth;
 mod grpc_client;
 
@@ -17,12 +18,14 @@ use tokio::sync::Mutex;
 
 const TRAY_STATUS_ID: &str = "status";
 const TRAY_TOGGLE_SHARING_ID: &str = "toggle_sharing";
+const TRAY_UPDATE_ID: &str = "update";
 
-/// The tray menu items `refresh_tray` rewrites. v2 has no lookup by id, so
-/// the handles are kept in managed state.
+/// The tray menu items `refresh_tray` and the updater rewrite. v2 has no
+/// lookup by id, so the handles are kept in managed state.
 struct TrayItems {
     status: MenuItem<Wry>,
     toggle_sharing: CheckMenuItem<Wry>,
+    update: MenuItem<Wry>,
 }
 
 /// Builds the menu-bar tray's menu: a disabled status line, a serving/pause
@@ -41,6 +44,14 @@ fn build_tray(app: &tauri::App) -> tauri::Result<()> {
         None::<&str>,
     )?;
     let open = MenuItem::with_id(app, "open", "Open Nodea", true, None::<&str>)?;
+    let (update_label, update_enabled) = ai4all_tauri::updater::UpdateState::Idle.tray_label();
+    let update = MenuItem::with_id(
+        app,
+        TRAY_UPDATE_ID,
+        update_label,
+        update_enabled,
+        None::<&str>,
+    )?;
     let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
 
     let menu = Menu::with_items(
@@ -51,6 +62,7 @@ fn build_tray(app: &tauri::App) -> tauri::Result<()> {
             &toggle_sharing,
             &PredefinedMenuItem::separator(app)?,
             &open,
+            &update,
             &quit,
         ],
     )?;
@@ -61,6 +73,7 @@ fn build_tray(app: &tauri::App) -> tauri::Result<()> {
     app.manage(TrayItems {
         status,
         toggle_sharing,
+        update,
     });
     Ok(())
 }
@@ -136,7 +149,11 @@ fn handle_menu_event(app_handle: &tauri::AppHandle, event: MenuEvent) {
                 let _ = app_handle.emit("sharing-changed", !currently_serving);
             });
         }
+        TRAY_UPDATE_ID => {
+            tauri::async_runtime::spawn(app_updater::tray_clicked(app_handle.clone()));
+        }
         "quit" => {
+            // A ready update installs on the way out (RunEvent::Exit in main()).
             app_handle.exit(0);
         }
         _ => {}
@@ -1109,6 +1126,7 @@ fn main() {
         // is also what puts it in the macOS bundle's Info.plist.
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             use tauri_plugin_deep_link::DeepLinkExt;
 
@@ -1173,6 +1191,31 @@ fn main() {
 
             build_tray(app)?;
 
+            // Every state change goes to the frontend and the tray item.
+            let handle = app.handle().clone();
+            let updater = Arc::new(app_updater::AppUpdater::new(
+                app_updater::PluginSource::new(app.handle().clone()),
+                move |state| {
+                    let _ = handle.emit("update://state", state);
+                    if let Some(items) = handle.try_state::<TrayItems>() {
+                        let (label, enabled) = state.tray_label();
+                        let _ = items.update.set_text(label);
+                        let _ = items.update.set_enabled(enabled);
+                    }
+                },
+            ));
+            app.manage(updater.clone());
+            // Release builds only. A dev build reports 0.1.0, so it would
+            // download the latest release and install it over itself; a
+            // developer can still try the flow with "Check for updates".
+            #[cfg(not(debug_assertions))]
+            tauri::async_runtime::spawn(ai4all_tauri::updater::run_schedule(
+                updater,
+                Default::default(),
+            ));
+            #[cfg(debug_assertions)]
+            drop(updater);
+
             // Keep running behind the tray on close/quit instead of exiting -
             // only the tray's own "Quit" item (see handle_menu_event) performs
             // a real app_handle.exit(0).
@@ -1208,8 +1251,20 @@ fn main() {
             get_model_cache_info,
             reveal_model_cache,
             load_model_auto,
-            get_all_status
+            get_all_status,
+            app_updater::get_update_state,
+            app_updater::check_for_updates,
+            app_updater::restart_to_update
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app_handle, event| {
+            // Every way out ends here: the tray's Quit, Cmd+Q, the OS
+            // logging out. Closing the window only hides it, so it does not.
+            if let tauri::RunEvent::Exit = event {
+                if let Some(updater) = app_handle.try_state::<Arc<app_updater::AppUpdater>>() {
+                    updater.install_on_exit();
+                }
+            }
+        });
 }

@@ -13,6 +13,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "createUpdaterArtifacts": true,
     "resources": ["../LICENSE", "../NOTICE", "../THIRD_PARTY_LICENSES.md"],
     "icon": [
       "icons/32x32.png",
@@ -31,6 +32,15 @@
     "deep-link": {
       "desktop": {
         "schemes": ["nodea"]
+      }
+    },
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDgzNzlDM0FBRkQ4ODdFRkMKUldUOGZvajlxc041Z3lWdC9VVlZocGRZc3BWeHJ6MjBNK1gyN3ViZjkwWDB6bnd3cE40cUtNS0gK",
+      "endpoints": [
+        "https://github.com/nodea-sh/nodea-client/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
       }
     }
   },

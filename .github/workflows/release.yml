@@ -73,16 +73,25 @@ jobs:
             container: ubuntu:22.04
             bundle_subpath: appimage/*.AppImage
             dest_filename: Nodea-linux.AppImage
+            # What the in-app updater downloads. On Linux and Windows it is
+            # the installer itself; macOS updates from a tarball of the .app.
+            # Names must match scripts/updater_manifest.py.
+            updater_subpath: appimage/*.AppImage
+            updater_filename: Nodea-linux.AppImage
           - platform: mac
             runner: macos-latest
             container: ''
             bundle_subpath: dmg/*.dmg
             dest_filename: Nodea-mac.dmg
+            updater_subpath: macos/*.app.tar.gz
+            updater_filename: Nodea-mac.app.tar.gz
           - platform: windows
             runner: windows-latest
             container: ''
             bundle_subpath: msi/*.msi
             dest_filename: Nodea-windows.msi
+            updater_subpath: msi/*.msi
+            updater_filename: Nodea-windows.msi
     runs-on: ${{ matrix.runner }}
     # An empty string means "no container", so only the Linux entry gets one.
     container: ${{ matrix.container }}
@@ -269,8 +278,18 @@ jobs:
           APPLE_SIGNING_IDENTITY_IN: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           APPLE_API_KEY_IN: ${{ secrets.APPLE_API_KEY }}
           APPLE_API_ISSUER_IN: ${{ secrets.APPLE_API_ISSUER }}
+          # Signs the updater bundles (bundle.createUpdaterArtifacts). Unlike
+          # the Apple secrets this one is required: a release without .sig
+          # files could never be installed by the in-app updater.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           set -euo pipefail
+
+          if [ -z "${TAURI_SIGNING_PRIVATE_KEY:-}" ]; then
+            echo "::error::TAURI_SIGNING_PRIVATE_KEY is unset in the release environment - the updater bundles cannot be signed."
+            exit 1
+          fi
 
           if [ "${{ matrix.platform }}" = "mac" ] && [ -n "${APPLE_CERTIFICATE_IN:-}" ]; then
             echo "Signing with ${APPLE_SIGNING_IDENTITY_IN}"
@@ -357,6 +376,22 @@ jobs:
           fi
           echo "Signed, notarised and stapled: $DMG"
 
+          # The in-app updater installs the .app inside this tarball, not the
+          # one checked above. If the bundler packed it before notarisation,
+          # every updated Mac would refuse to open the app.
+          TARBALL=$(scripts/select_bundle.sh 'macos/*.app.tar.gz' src-tauri/target/release/bundle)
+          UNPACKED="$RUNNER_TEMP/updater-app"
+          rm -rf "$UNPACKED" && mkdir -p "$UNPACKED"
+          tar -xzf "$TARBALL" -C "$UNPACKED"
+          UPDATER_APP=$(scripts/select_bundle.sh '*.app' "$UNPACKED")
+          if ! codesign --verify --deep --strict "$UPDATER_APP" 2>&1 \
+             || ! spctl --assess --type execute --context context:primary-signature "$UPDATER_APP" 2>&1 \
+             || ! xcrun stapler validate "$UPDATER_APP" 2>&1; then
+            echo "::error::The .app in $(basename "$TARBALL") is not signed, notarised and stapled - updated Macs would refuse to open it"
+            exit 1
+          fi
+          echo "Signed, notarised and stapled: $(basename "$TARBALL")"
+
       - name: Remove the signing keychain
         if: always() && matrix.platform == 'mac'
         shell: bash
@@ -378,10 +413,18 @@ jobs:
           cp "$FILE" "dist/${{ matrix.dest_filename }}"
           echo "Staged $FILE ($(du -h "$FILE" | cut -f1)) as ${{ matrix.dest_filename }}"
 
+          # On Linux and Windows this is the installer again, so the copy is
+          # a no-op; on macOS it adds the .app tarball. Either way the .sig
+          # sits beside it under the same fixed name.
+          UPDATER=$(scripts/select_bundle.sh '${{ matrix.updater_subpath }}' src-tauri/target/release/bundle)
+          cp "$UPDATER" "dist/${{ matrix.updater_filename }}"
+          cp "$UPDATER.sig" "dist/${{ matrix.updater_filename }}.sig"
+          echo "Staged $UPDATER and its signature as ${{ matrix.updater_filename }}"
+
       - uses: actions/upload-artifact@v4
         with:
           name: bundle-${{ matrix.platform }}
-          path: dist/${{ matrix.dest_filename }}
+          path: dist/
           if-no-files-found: error
           retention-days: 7
 
@@ -400,16 +443,32 @@ jobs:
     env:
       VERSION: ${{ needs.version.outputs.version }}
     steps:
+      # For scripts/updater_manifest.py.
+      - uses: actions/checkout@v4
+        with:
+          ref: v${{ needs.version.outputs.version }}
+
       - uses: actions/download-artifact@v4
         with:
           pattern: bundle-*
           path: dist
           merge-multiple: true
 
+      # The in-app updater reads this from releases/latest/download/, which
+      # ignores drafts, so it goes live only when the release is published.
+      # Fails if any platform's bundle or signature is missing.
+      - name: Write the updater manifest
+        run: |
+          python3 scripts/updater_manifest.py \
+            --version "$VERSION" \
+            --repo "$GITHUB_REPOSITORY" \
+            --assets dist > dist/latest.json
+          cat dist/latest.json
+
       - name: Write checksums
         working-directory: dist
         run: |
-          sha256sum Nodea-* > SHA256SUMS
+          sha256sum Nodea-* latest.json > SHA256SUMS
           cat SHA256SUMS
 
       # Lets anyone check with `gh attestation verify` that a download was
@@ -419,7 +478,9 @@ jobs:
       - uses: actions/attest-build-provenance@v2
         continue-on-error: ${{ github.event.repository.private }}
         with:
-          subject-path: dist/Nodea-*
+          subject-path: |
+            dist/Nodea-*
+            dist/latest.json
 
       - name: Create the draft release
         env:
