@@ -53,14 +53,60 @@ jobs:
       - name: Provide compile-time env
         run: cp .env.test .env.local
 
+      # The inference contract tests run here too but skip, because their
+      # models are not fetched; the inference job below requires them.
       - name: cargo test
         working-directory: src-tauri
-        run: cargo test --all-targets
+        run: cargo test --workspace --all-targets
 
       # A hosted runner has ~14 GB free; this shows how close the build came.
       - name: Disk usage
         if: always()
         run: df -h / && du -sh src-tauri/target || true
+
+  # The model logic on its own: crates/nodea-inference against real GGUFs, with
+  # no Tauri, webkit or .env.local. See notes/llama-cpp-4-migration.md §8.
+  inference:
+    runs-on: ubuntu-latest
+    container: ubuntu:22.04
+    steps:
+      - name: Install base tooling
+        run: |
+          apt-get update
+          apt-get install -y build-essential cmake clang libclang-dev git curl ca-certificates pkg-config libssl-dev
+
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: cargo-inference-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: cargo-inference-
+
+      # About 1.5 GB for all four models. The key is the manifest, so a
+      # change to a pinned model refetches.
+      - uses: actions/cache@v4
+        with:
+          path: .cache/test-models
+          key: test-models-${{ hashFiles('src-tauri/crates/nodea-inference/tests/models.toml') }}
+
+      - name: Fetch test models
+        working-directory: src-tauri
+        run: cargo run -p nodea-inference --bin fetch-test-models
+
+      - name: cargo test -p nodea-inference
+        working-directory: src-tauri
+        env:
+          NODEA_REQUIRE_TEST_MODELS: '1'
+        run: cargo test -p nodea-inference
+
+      - name: Disk usage
+        if: always()
+        run: df -h / && du -sh src-tauri/target .cache/test-models || true
 
   frontend:
     runs-on: ubuntu-latest
@@ -174,7 +220,7 @@ jobs:
 
       - name: cargo fmt
         working-directory: src-tauri
-        run: cargo fmt --check
+        run: cargo fmt --all --check
 
   clippy:
     runs-on: ubuntu-latest
@@ -210,4 +256,4 @@ jobs:
 
       - name: cargo clippy
         working-directory: src-tauri
-        run: cargo clippy --all-targets -- -D warnings
+        run: cargo clippy --workspace --all-targets -- -D warnings

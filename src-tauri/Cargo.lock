@@ -56,19 +56,15 @@ dependencies = [
  "dotenv",
  "futures",
  "hostname",
- "image 0.25.9",
- "indexmap 2.13.0",
- "mistralrs",
- "objc2-metal",
+ "nodea-inference",
+ "nodea-proto",
  "open 5.3.3",
  "prost",
- "protoc-bin-vendored",
  "rand 0.8.5",
  "reqwest 0.11.27",
  "serde",
  "serde_json",
  "sha2",
- "sysinfo",
  "tauri",
  "tauri-build",
  "tauri-plugin-deep-link",
@@ -78,7 +74,6 @@ dependencies = [
  "tokio-test",
  "tokio-util",
  "tonic",
- "tonic-build",
  "urlencoding",
  "uuid 1.20.0",
 ]
@@ -4253,6 +4248,38 @@ dependencies = [
  "cfg-if",
  "cfg_aliases",
  "libc",
+]
+
+[[package]]
+name = "nodea-inference"
+version = "0.1.0"
+dependencies = [
+ "futures",
+ "image 0.25.9",
+ "indexmap 2.13.0",
+ "mistralrs",
+ "nodea-proto",
+ "objc2-metal",
+ "reqwest 0.11.27",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sysinfo",
+ "tempfile",
+ "tokio",
+ "tokio-util",
+ "toml 0.8.23",
+]
+
+[[package]]
+name = "nodea-proto"
+version = "0.1.0"
+dependencies = [
+ "prost",
+ "protoc-bin-vendored",
+ "serde",
+ "tonic",
+ "tonic-build",
 ]
 
 [[package]]

@@ -11,23 +11,19 @@ edition = "2021"
 name = "ai4all_tauri"
 path = "src/lib.rs"
 
+# The app is the workspace root. Everything model-related lives in
+# crates/nodea-inference, which builds and tests without Tauri (see
+# notes/llama-cpp-4-migration.md).
+[workspace]
+members = ["crates/*"]
+
 [build-dependencies]
 tauri-build = { version = "1.5", features = [] }
-tonic-build = "0.11"
 dotenv = "0.15"
-protoc-bin-vendored = "3"
 
 [dependencies]
-# Only needed to implement mistralrs::RequestLike by hand (see
-# ReasoningRequest in model_manager.rs): the trait's messages_ref() signature
-# names IndexMap, so the type has to be spellable here. Unifies with the
-# version mistralrs-core already depends on, so Cargo.lock does not move.
-indexmap = "2.13"
-# Same reason as indexmap: RequestLike::images_ref() names image::DynamicImage.
-# Pinned to the version mistralrs-core already resolves to (0.25.9) so it is the
-# same type and Cargo.lock does not move. default-features = false keeps this
-# from pulling in codec work we never do - we never supply an image.
-image = { version = "0.25.9", default-features = false }
+nodea-proto = { path = "crates/nodea-proto" }
+nodea-inference = { path = "crates/nodea-inference" }
 tauri = { version = "1.5", features = ["shell-open", "window-start-dragging", "system-tray"] }
 tauri-plugin-deep-link = "0.1"
 serde = { version = "1.0", features = ["derive"] }
@@ -49,22 +45,6 @@ hostname = "0.3"
 chrono = "0.4"
 futures = "0.3"
 tokio-util = { version = "0.7", features = ["codec"] }
-# Total/available RAM on all three platforms (GlobalMemoryStatusEx on Windows).
-# Pinned to the version mistralrs-core already resolves to, so it is one crate.
-sysinfo = { version = "0.36.1", default-features = false, features = ["system"] }
-
-# mistralrs's "metal" and "accelerate" features wrap Apple-only APIs
-# (Metal GPU compute, the Accelerate framework) - gate them to macOS so
-# non-macOS builds (e.g. Linux CI) don't try to compile Apple bindings.
-[target.'cfg(target_os = "macos")'.dependencies]
-# 0.9 is not published to crates.io; pin the release tag.
-mistralrs = { git = "https://github.com/EricLBuehler/mistral.rs", tag = "v0.9.5", features = ["metal", "accelerate"] }
-# Metal recommendedMaxWorkingSetSize, the GPU's memory ceiling (src/memory.rs).
-# Same version candle already links for its Metal backend.
-objc2-metal = { version = "0.3.2", features = ["MTLDevice"] }
-
-[target.'cfg(not(target_os = "macos"))'.dependencies]
-mistralrs = { git = "https://github.com/EricLBuehler/mistral.rs", tag = "v0.9.5" }
 
 [dev-dependencies]
 tempfile = "3.8"
@@ -77,8 +57,8 @@ custom-protocol = ["tauri/custom-protocol"]
 # mistralrs-metal-compile builds the Metal kernels for mistralrs-core,
 # mistralrs-quant and mistralrs-paged-attn. The air -> metallib link can exit 0
 # while producing an essentially empty .metallib under a release build's load -
-# see vendor/mistralrs-metal-compile-0.9.5 for the verify-and-retry fix. This
-# crate has no parent workspace, so the patch section lives directly here.
+# see vendor/mistralrs-metal-compile-0.9.5 for the verify-and-retry fix. Patch
+# sections only take effect in the workspace root, which is this file.
 [patch."https://github.com/EricLBuehler/mistral.rs"]
 mistralrs-metal-compile = { path = "vendor/mistralrs-metal-compile-0.9.5" }
 

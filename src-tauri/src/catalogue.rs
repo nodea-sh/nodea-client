@@ -31,34 +31,11 @@ fn manifest_path(cache_dir: &Path) -> PathBuf {
 }
 
 // `LoadModel.model_name` and `model_ref` come from the backend and end up in
-// `cache_dir.join(model_name)` and a Hugging Face URL. Unchecked, a name like
-// `../../Library/LaunchAgents/x.plist` (or an absolute path) would write a
-// download anywhere the user can write. So both are held to the shape a real
-// registry entry has: a plain `*.gguf` file name, and an `owner/repo` id.
-
-fn is_safe_segment(segment: &str) -> bool {
-    !segment.is_empty()
-        && segment != "."
-        && segment != ".."
-        && segment
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'))
-}
-
-/// Ok for a plain GGUF file name that stays inside the cache directory.
-pub fn validate_model_file_name(name: &str) -> Result<(), String> {
-    let ok = is_safe_segment(name)
-        && !name.starts_with('.')
-        && name.to_ascii_lowercase().ends_with(".gguf");
-    if ok {
-        Ok(())
-    } else {
-        Err(format!(
-            "Refusing model file name {:?}: not a plain .gguf file name",
-            name
-        ))
-    }
-}
+// `cache_dir.join(model_name)` and a Hugging Face URL, so both are held to the
+// shape a real registry entry has. The file-name check lives beside the
+// download code in nodea-inference.
+use nodea_inference::download::is_safe_segment;
+pub use nodea_inference::download::validate_model_file_name;
 
 /// Ok for a Hugging Face `owner/repo` id.
 pub fn validate_model_ref(model_ref: &str) -> Result<(), String> {

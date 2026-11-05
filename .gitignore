@@ -1,5 +1,8 @@
 # Tauri
 src-tauri/target/
+
+# Test GGUFs fetched by `make fetch-test-models`
+.cache/
 src-tauri/WixTools/
 
 # Environment files (keep .env.example and .env.test, which hold only the

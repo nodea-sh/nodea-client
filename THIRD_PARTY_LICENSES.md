@@ -4915,15 +4915,19 @@ Used by:
 - openssl-macros 0.1.1
 - openssl 0.10.75 (https://github.com/rust-openssl/rust-openssl)
 - quick-error 2.0.1 (http://github.com/tailhook/quick-error)
+- serde_spanned 0.6.9 (https://github.com/toml-rs/toml)
 - serde_spanned 1.0.4 (https://github.com/toml-rs/toml)
 - socks 0.3.4 (https://github.com/sfackler/rust-socks)
 - terminal_size 0.4.3 (https://github.com/eminence/terminal-size)
 - tokio-io-timeout 1.2.1 (https://github.com/sfackler/tokio-io-timeout)
+- toml 0.8.23 (https://github.com/toml-rs/toml)
 - toml 0.9.11+spec-1.1.0 (https://github.com/toml-rs/toml)
 - toml_datetime 0.6.11 (https://github.com/toml-rs/toml)
 - toml_datetime 0.7.5+spec-1.1.0 (https://github.com/toml-rs/toml)
 - toml_edit 0.19.15 (https://github.com/toml-rs/toml)
+- toml_edit 0.22.27 (https://github.com/toml-rs/toml)
 - toml_parser 1.0.6+spec-1.1.0 (https://github.com/toml-rs/toml)
+- toml_write 0.1.2 (https://github.com/toml-rs/toml)
 - toml_writer 1.0.6+spec-1.1.0 (https://github.com/toml-rs/toml)
 - unicode_categories 0.1.1 (https://github.com/swgillespie/unicode-categories)
 
@@ -11439,6 +11443,8 @@ Used by:
 - candle-metal-kernels 0.11.0 (https://github.com/huggingface/candle)
 - candle-nn 0.11.0 (https://github.com/huggingface/candle)
 - ai4all-tauri 0.1.0 (https://github.com/ai4all-io/nodea-client)
+- nodea-inference 0.1.0
+- nodea-proto 0.1.0
 - accelerate-src 0.3.2 (https://github.com/blas-lapack-rs/accelerate-src)
 - allocator-api2 0.2.21 (https://github.com/zakarumych/allocator-api2)
 - anyhow 1.0.100 (https://github.com/dtolnay/anyhow)

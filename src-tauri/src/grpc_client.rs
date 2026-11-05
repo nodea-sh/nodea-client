@@ -13,6 +13,7 @@ use crate::{set_connection_status, set_model_status, AppState, MessageLogEntry};
 use ai4all_tauri::catalogue;
 use ai4all_tauri::reload::{self, ReloadEvent, ReloadTimeouts};
 use futures::stream::{self, StreamExt};
+use nodea_inference::wire;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tauri::Manager;
@@ -955,17 +956,7 @@ async fn send_generation_error(
 ) {
     let request = StreamEventsRequest {
         msg: Some(stream_events_request::Msg::GeneratedText(
-            crate::proto::GeneratedText {
-                request_id: request_id.to_string(),
-                text: String::new(),
-                last: true,
-                usage: None,
-                finish_reason: None,
-                error: Some(error.to_string()),
-                tool_calls: None,
-                logprobs: None,
-                choice_index: None,
-            },
+            wire::generation_error(request_id, error),
         )),
         user_id: String::new(),
         device_id: device_id.to_string(),
@@ -1016,25 +1007,7 @@ async fn handle_chat_completion(
     // Generate response with streaming - NOTE: This is now async
     let outcome = model_mgr
         .generate_streaming(&turns, &options, cancel, move |update| {
-            // Create the GeneratedText message. Terminal metadata rides the
-            // terminal token, so the backend never has to correlate two messages.
-            let generated_text = crate::proto::GeneratedText {
-                request_id: request_id_clone.clone(),
-                text: update.text.clone(),
-                // `last` means "no more tokens for this request at all", not "this
-                // choice finished" - with n > 1 the backend would otherwise stop
-                // reading after the first completion to end.
-                last: update.is_final,
-                choice_index: Some(update.choice_index as u32),
-                usage: update.usage.map(|usage| crate::proto::Usage {
-                    prompt_tokens: usage.prompt_tokens,
-                    completion_tokens: usage.completion_tokens,
-                }),
-                finish_reason: update.finish_reason.clone(),
-                error: None,
-                tool_calls: update.tool_calls.clone(),
-                logprobs: update.logprobs.clone(),
-            };
+            let generated_text = wire::generated_text(&request_id_clone, &update);
 
             // Create the StreamEventsRequest
             let request = StreamEventsRequest {

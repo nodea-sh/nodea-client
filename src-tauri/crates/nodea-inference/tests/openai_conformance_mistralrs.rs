@@ -17,10 +17,13 @@
 //! returns valid JSON, or that a tool call really parses. That needs a loaded
 //! model, and macOS cannot create a Metal device from `cargo test`.
 
-use ai4all_tauri::model_manager::{build_request, GenerationOptions};
-use ai4all_tauri::openai_request::{chat_turns, generation_options};
-use ai4all_tauri::proto::{ChatCompletionRequest, ChatMessage};
+#![cfg(feature = "engine-mistralrs")]
+
 use mistralrs::{Constraint, RequestLike, ToolChoice};
+use nodea_inference::engine::mistralrs::build_request;
+use nodea_inference::proto::{ChatCompletionRequest, ChatMessage};
+use nodea_inference::request::{chat_turns, generation_options};
+use nodea_inference::GenerationOptions;
 use std::collections::HashMap;
 
 const TOOLS: &str = r#"[{"type":"function","function":{
@@ -166,10 +169,7 @@ fn an_empty_request_asks_the_engine_for_nothing_special() {
     assert!(sampling.stop_toks.is_none());
     // The one default that is always applied, so a model that never emits EOS
     // cannot generate forever.
-    assert_eq!(
-        sampling.max_len,
-        Some(ai4all_tauri::model_manager::DEFAULT_MAX_TOKENS),
-    );
+    assert_eq!(sampling.max_len, Some(nodea_inference::DEFAULT_MAX_TOKENS),);
 
     assert!(matches!(built.take_constraint(), Constraint::None));
     assert!(built.take_tools().is_none());
@@ -291,19 +291,16 @@ fn a_request_the_node_cannot_honour_fails_loudly() {
 }
 
 #[test]
-fn seed_is_the_one_field_read_and_deliberately_dropped() {
-    // mistralrs 0.8.1 seeds one RNG per engine and has no per-request seed.
-    // OpenAI documents seed as best-effort, so accepting it is spec-faithful -
-    // but nothing downstream may act as though it were honoured.
+fn seed_reaches_the_options_and_is_the_only_field_mistralrs_drops() {
+    // mistralrs seeds one RNG per engine and has no per-request seed, so
+    // build_request has nothing to put it in. OpenAI documents seed as
+    // best-effort, so accepting it is spec-faithful. It is carried in the
+    // options because the llama engine honours it.
     let with_seed = ChatCompletionRequest {
         messages: vec![message("user", "Hi")],
         seed: Some(42),
         ..Default::default()
     };
-    let without = ChatCompletionRequest {
-        seed: None,
-        ..with_seed.clone()
-    };
 
-    assert_eq!(generation_options(&with_seed), generation_options(&without));
+    assert_eq!(generation_options(&with_seed).seed, Some(42));
 }
