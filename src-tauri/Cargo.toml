@@ -12,7 +12,7 @@ name = "ai4all_tauri"
 path = "src/lib.rs"
 
 [build-dependencies]
-tauri-build = { version = "1.5", features = [] }
+tauri-build = { version = "2", features = [] }
 tonic-build = "0.11"
 dotenv = "0.15"
 protoc-bin-vendored = "3"
@@ -28,8 +28,13 @@ indexmap = "2.13"
 # same type and Cargo.lock does not move. default-features = false keeps this
 # from pulling in codec work we never do - we never supply an image.
 image = { version = "0.25.9", default-features = false }
-tauri = { version = "1.5", features = ["shell-open", "window-start-dragging", "system-tray"] }
-tauri-plugin-deep-link = "0.1"
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-deep-link = "2"
+# Opens the web console from Settings > Account; scoped in capabilities/.
+tauri-plugin-opener = "2"
+# On Windows and Linux a nodea:// link starts a second process; this hands it
+# to the running app instead (the deep-link feature forwards the URL).
+tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio = { version = "1", features = ["full"] }

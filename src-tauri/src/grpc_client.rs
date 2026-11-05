@@ -15,7 +15,7 @@ use ai4all_tauri::reload::{self, ReloadEvent, ReloadTimeouts};
 use futures::stream::{self, StreamExt};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tauri::Manager;
+use tauri::Emitter;
 use tokio::sync::Mutex;
 use tokio::time::{interval, sleep};
 use tokio_util::sync::CancellationToken;
@@ -1287,7 +1287,7 @@ async fn handle_load_model(
 
             // Emit legacy event for compatibility
             app_handle_clone
-                .emit_all("model-download-progress", progress.clone())
+                .emit("model-download-progress", progress.clone())
                 .ok();
 
             // At 100% the switch moves on to draining/loading, which report themselves.
@@ -1507,7 +1507,7 @@ async fn log_message(
     ai4all_tauri::devlog::push_capped(&mut log, entry.clone());
 
     // Emit event to frontend
-    app_handle.emit_all("new-message", entry).ok();
+    app_handle.emit("new-message", entry).ok();
 }
 
 #[cfg(test)]

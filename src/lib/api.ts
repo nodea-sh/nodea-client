@@ -1,6 +1,6 @@
 // API client for backend REST API
 import { mockApiClient } from './mockApi'
-import { invoke } from '@tauri-apps/api/tauri'
+import { invoke } from '@tauri-apps/api/core'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/site'
 
