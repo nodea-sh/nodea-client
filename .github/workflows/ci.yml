@@ -198,6 +198,9 @@ jobs:
         working-directory: src-tauri
         env:
           NODEA_LLAMA_LOG: '1'
+          # ggml never picks a CPU-type Vulkan device on its own (right for
+          # users); naming it is how lavapipe gets used here.
+          GGML_VK_VISIBLE_DEVICES: '0'
         run: |
           cargo run -p nodea-inference --features vulkan --bin nodea-infer -- \
             --model smoke --prompt "Say hello." --gpu-layers 99 --format pretty --bench 2>&1 \

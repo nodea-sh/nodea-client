@@ -17,6 +17,13 @@ path = "src/lib.rs"
 [workspace]
 members = ["crates/*"]
 
+# Options llama-cpp-sys-4 passes to llama.cpp's CMake (read from this file when
+# the target directory is inside the repo, as in CI and release builds).
+# OpenSSL would only serve llama.cpp's own model downloader, which we never
+# call, and would add a second TLS stack to ship and patch.
+[workspace.metadata.llama-cpp-sys-4.cmake]
+LLAMA_OPENSSL = "OFF"
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 dotenv = "0.15"
