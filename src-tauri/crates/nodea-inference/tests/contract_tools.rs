@@ -1,5 +1,4 @@
-//! Proto contract: tools, response_format and reasoning
-//! (notes/llama-cpp-4-migration.md §5.1, §8.5).
+//! Proto contract: tools, response_format and reasoning.
 //!
 //! The `tools` fixture is Qwen3-0.6B, a thinking model. Prompts end in
 //! `/no_think`, Qwen3's own switch, so a small `max_tokens` is not spent on

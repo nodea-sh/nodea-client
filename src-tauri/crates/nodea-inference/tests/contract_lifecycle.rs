@@ -1,5 +1,4 @@
-//! Proto contract: load, unload, cancel and context limits
-//! (notes/llama-cpp-4-migration.md §4.3, §5.5, §8.5).
+//! Proto contract: load, unload, cancel and context limits.
 
 mod support;
 

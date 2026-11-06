@@ -1,9 +1,10 @@
-//! Fixtures for the proto contract suite (notes/llama-cpp-4-migration.md §8.3).
+//! Fixtures for the proto contract suite.
 //!
 //! Every contract test goes through the real path the node uses:
 //! `ChatCompletionRequest` -> `request::{chat_turns, generation_options}` ->
 //! `Model::generate_streaming` -> `wire::generated_text`, and then checks the
-//! `GeneratedText` messages the backend would receive against §8.6.
+//! `GeneratedText` messages the backend would receive against the wire
+//! invariants in `assert_invariants`.
 //!
 //! A test whose model has not been fetched prints `SKIP` and passes, so plain
 //! `cargo test` works anywhere. CI sets `NODEA_REQUIRE_TEST_MODELS=1`, which
@@ -215,7 +216,7 @@ pub const MARKERS: &[&str] = &[
 
 const FINISH_REASONS: &[&str] = &["stop", "length", "tool_calls"];
 
-/// The §8.6 invariants. Every contract test calls this.
+/// The wire invariants. Every contract test calls this.
 pub fn assert_invariants(req: &ChatCompletionRequest, run: &Run) {
     let messages = &run.messages;
     let dump = || format!("{messages:#?}");
@@ -461,7 +462,7 @@ pub const CAPABILITY_TESTS: &[(&str, &[&str])] = &[
     // App-level: the reload path is driven with a fake model slot.
     ("scheduler_v1", &["src-tauri/src/reload.rs tests"]),
     // The backend routes architectures beyond the previous engine's list only
-    // to nodes that report this (notes/llama-cpp-4-migration.md §9).
+    // to nodes that report this.
     (
         "llama_cpp_engine",
         &[

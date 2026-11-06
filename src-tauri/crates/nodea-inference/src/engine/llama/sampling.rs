@@ -1,4 +1,4 @@
-//! The sampler chain (notes/llama-cpp-4-migration.md §5.2).
+//! The sampler chain.
 //!
 //! `SamplerConfig` is the pure decision, built and validated before any
 //! generation starts, so a bad `logit_bias` fails the request instead of a

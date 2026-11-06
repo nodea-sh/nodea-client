@@ -1,6 +1,6 @@
-//! The decode loop (notes/llama-cpp-4-migration.md §4.4).
+//! The decode loop.
 //!
-//! Choices run one after another, each in a fresh context (D6: no KV state is
+//! Choices run one after another, each in a fresh context (no KV state is
 //! shared across requests, or across choices). Every step checks for
 //! cancellation first, so a cancel stops within one token.
 

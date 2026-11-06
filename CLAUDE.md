@@ -36,8 +36,9 @@ add one, wire it into `ci.yml` in the same PR.
 ## Inference (llama.cpp)
 
 All model logic is in `src-tauri/crates/nodea-inference` (no Tauri, no
-`.env.local`); the app's `ModelManager` only wraps it. The design and the proto
-contract it must keep are in `notes/llama-cpp-4-migration.md`.
+`.env.local`); the app's `ModelManager` only wraps it. The proto contract it
+must keep is encoded in its contract suite (`tests/contract_*.rs`, checked by
+`support::assert_invariants`).
 
 - **Iterate without the app.** `make fetch-test-models` (pinned GGUFs, about
   1.5 GB), then `make test-inference` for the contract suite, or
@@ -56,8 +57,9 @@ contract it must keep are in `notes/llama-cpp-4-migration.md`.
   parse model-specific markers in our code.
 - **GPU backends:** macOS always builds Metal (shaders embedded in the binary);
   Windows and Linux release builds pass `--features vulkan`. Dev and CI builds
-  elsewhere are CPU only. A real GPU run is the manual release checklist in
-  the spec (§8.8): `cargo test` cannot cover it.
+  elsewhere are CPU only. A real GPU run (Metal, Vulkan on NVIDIA, AMD and
+  Intel, and the no-GPU fallback) has to be checked by hand on a release
+  build: `cargo test` cannot cover it.
 
 ## No extra documentation by default
 

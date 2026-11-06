@@ -8,17 +8,17 @@ publish = false
 
 [features]
 default = []
-# llama.cpp GPU backends (notes/llama-cpp-4-migration.md D3): Metal on macOS,
+# llama.cpp GPU backends: Metal on macOS,
 # Vulkan on Windows and Linux. Without either, llama.cpp runs on the CPU.
 metal = ["llama-cpp-4/metal"]
 vulkan = ["llama-cpp-4/vulkan"]
 
 [dependencies]
 nodea-proto = { path = "../nodea-proto" }
-# Pinned exactly: the API breaks between minor versions (D1). No default
+# Pinned exactly: the API breaks between minor versions. No default
 # features: they add rpc, mtmd and dynamic-link, which we do not use, and
-# never `prebuilt` (D2, downloads binaries at build time) or `native` (D4,
-# bakes the build host's CPU into the binary).
+# never `prebuilt` (downloads binaries at build time) or `native`
+# (bakes the build host's CPU into the binary).
 llama-cpp-4 = { version = "=0.11.0", default-features = false }
 # For the log callback (llama.cpp reports load errors only in its log) and
 # the GPU memory probe.

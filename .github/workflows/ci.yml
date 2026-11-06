@@ -66,7 +66,7 @@ jobs:
         run: df -h / && du -sh src-tauri/target || true
 
   # The model logic on its own: crates/nodea-inference against real GGUFs, with
-  # no Tauri, webkit or .env.local. See notes/llama-cpp-4-migration.md §8.
+  # no Tauri, webkit or .env.local.
   inference:
     runs-on: ubuntu-latest
     container: ubuntu:22.04

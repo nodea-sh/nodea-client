@@ -33,7 +33,7 @@ pub fn node_capabilities() -> Vec<String> {
         // The node runs llama.cpp, so it loads every GGUF architecture
         // llama.cpp does - not only the eight the previous engine could. During the
         // rollout the backend offers the wider catalog only to nodes that
-        // report this (notes/llama-cpp-4-migration.md §9).
+        // report this.
         "llama_cpp_engine".to_string(),
     ]
 }

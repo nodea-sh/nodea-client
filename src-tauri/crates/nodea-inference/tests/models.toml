@@ -1,5 +1,4 @@
-# Pinned test models for the inference contract suite
-# (notes/llama-cpp-4-migration.md §8.2). All public, none gated.
+# Pinned test models for the inference contract suite. All public, none gated.
 #
 #   cargo run -p nodea-inference --bin fetch-test-models -- [--only smoke,tools]
 #
