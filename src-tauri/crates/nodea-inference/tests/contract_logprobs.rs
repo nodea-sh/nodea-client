@@ -1,4 +1,4 @@
-//! Proto contract: logprobs (notes/llama-cpp-4-migration.md §5.3, §8.5).
+//! Proto contract: logprobs.
 
 mod support;
 

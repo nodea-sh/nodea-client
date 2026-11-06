@@ -12,8 +12,7 @@ name = "ai4all_tauri"
 path = "src/lib.rs"
 
 # The app is the workspace root. Everything model-related lives in
-# crates/nodea-inference, which builds and tests without Tauri (see
-# notes/llama-cpp-4-migration.md).
+# crates/nodea-inference, which builds and tests without Tauri.
 [workspace]
 members = ["crates/*"]
 
