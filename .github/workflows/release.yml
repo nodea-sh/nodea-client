@@ -15,7 +15,36 @@ permissions:
   contents: read
 
 jobs:
+  # The build signs the updater bundles at the very end, so a key and password
+  # that do not match used to fail after 20+ minutes on every platform, and
+  # after the version job had already taken a number. This fails in seconds,
+  # before any tag is pushed.
+  preflight:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: release
+      deployment: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Check the updater signing key
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          # The CLI version the build uses, without a full npm ci.
+          CLI=$(node -p "require('./package-lock.json').packages['node_modules/@tauri-apps/cli'].version")
+          python3 scripts/check_updater_key.py --config src-tauri/tauri.conf.json -- \
+            npx --yes "@tauri-apps/cli@$CLI" signer sign
+
   version:
+    needs: preflight
     # Releases are cut from main only, so a tag never points at an unreviewed
     # branch.
     if: github.ref == 'refs/heads/main'
