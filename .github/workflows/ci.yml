@@ -114,7 +114,7 @@ jobs:
   # compiles and links (shaders embedded) and that the suite passes on macOS.
   # Metal inference itself is the manual release check.
   inference-macos:
-    runs-on: macos-14
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
 
