@@ -35,7 +35,7 @@
       }
     },
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDgzNzlDM0FBRkQ4ODdFRkMKUldUOGZvajlxc041Z3lWdC9VVlZocGRZc3BWeHJ6MjBNK1gyN3ViZjkwWDB6bnd3cE40cUtNS0gK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEUzQjBFNkIwNDBGQ0Q5MUUKUldRZTJmeEFzT2F3NDZsTWlkVXJBUVhKRHRRclNKS3pRZExYMEQvOU9JakwwNUhLSXdLSmxyZXUK",
       "endpoints": [
         "https://github.com/nodea-sh/nodea-client/releases/latest/download/latest.json"
       ],
