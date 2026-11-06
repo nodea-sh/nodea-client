@@ -1262,6 +1262,18 @@ fn main() {
             // Every way out ends here: the tray's Quit, Cmd+Q, the OS
             // logging out. Closing the window only hides it, so it does not.
             if let tauri::RunEvent::Exit = event {
+                // Before exit() runs llama.cpp's static destructors, or
+                // quitting with a model loaded aborts on macOS.
+                if let Some(state) = app_handle.try_state::<AppState>() {
+                    let released = tauri::async_runtime::block_on(model_manager::release_for_exit(
+                        &state.model_manager,
+                        &state.generations,
+                        std::time::Duration::from_secs(5),
+                    ));
+                    if !released {
+                        eprintln!("Quitting with the model still loaded: its slot stayed busy");
+                    }
+                }
                 if let Some(updater) = app_handle.try_state::<Arc<app_updater::AppUpdater>>() {
                     updater.install_on_exit();
                 }

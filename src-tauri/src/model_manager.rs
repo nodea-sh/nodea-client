@@ -179,9 +179,94 @@ pub fn create_model_manager(cache_dir: PathBuf) -> SharedModelManager {
     Arc::new(Mutex::new(ModelManager::new(cache_dir)))
 }
 
+/// Free the loaded model before the process exits.
+///
+/// Quitting with a model still loaded aborts on macOS: `exit()` runs
+/// llama.cpp's static destructors, which free the Metal device while the
+/// model's buffers still hold GPU memory, and llama.cpp fails an assertion
+/// (`GGML_ASSERT([rsets->data count] == 0)`) instead of exiting. Dropping the
+/// model first releases that memory.
+///
+/// A generation holds the model_manager lock for its whole run, so in-flight
+/// generations are cancelled first (they stop within one token); the lock is
+/// then waited on for at most `lock_timeout`. Returns whether the model slot
+/// was released - false means something kept the lock, e.g. a model still
+/// loading.
+pub async fn release_for_exit(
+    model_manager: &SharedModelManager,
+    generations: &crate::generations::Generations,
+    lock_timeout: std::time::Duration,
+) -> bool {
+    generations.drain(std::time::Duration::ZERO).await;
+    match tokio::time::timeout(lock_timeout, model_manager.lock()).await {
+        Ok(mut manager) => {
+            manager.unload();
+            true
+        }
+        Err(_) => false,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::generations::Generations;
+    use std::time::Duration;
+
+    #[tokio::test]
+    async fn release_for_exit_empties_the_slot() {
+        let dir = tempfile::tempdir().unwrap();
+        let shared = create_model_manager(dir.path().to_path_buf());
+        shared.lock().await.model_path = Some(dir.path().join("model.gguf"));
+
+        let released = release_for_exit(&shared, &Generations::new(), Duration::from_secs(1)).await;
+
+        assert!(released);
+        let manager = shared.lock().await;
+        assert!(!manager.is_loaded());
+        assert!(manager.model_path.is_none());
+    }
+
+    #[tokio::test]
+    async fn release_for_exit_cancels_in_flight_generations_first() {
+        // A generation holds the model_manager lock; without the cancel, exit
+        // would wait the whole timeout and then quit with the model loaded.
+        let dir = tempfile::tempdir().unwrap();
+        let shared = create_model_manager(dir.path().to_path_buf());
+        let generations = Arc::new(Generations::new());
+        let cancel = generations.begin("req-1").await.unwrap();
+
+        let generation = {
+            let shared = shared.clone();
+            let generations = generations.clone();
+            let cancel = cancel.clone();
+            tokio::spawn(async move {
+                let _lock = shared.lock().await;
+                cancel.cancelled().await;
+                generations.finish("req-1").await;
+            })
+        };
+        tokio::task::yield_now().await;
+
+        let released = release_for_exit(&shared, &generations, Duration::from_secs(5)).await;
+
+        assert!(cancel.is_cancelled());
+        assert!(released);
+        generation.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn release_for_exit_gives_up_when_the_lock_stays_held() {
+        // Exit must not hang on a lock it cannot get, e.g. a model mid-load.
+        let dir = tempfile::tempdir().unwrap();
+        let shared = create_model_manager(dir.path().to_path_buf());
+        let _held = shared.lock().await;
+
+        let released =
+            release_for_exit(&shared, &Generations::new(), Duration::from_millis(50)).await;
+
+        assert!(!released);
+    }
 
     #[test]
     fn describe_prompt_carries_lengths_not_content() {
