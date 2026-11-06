@@ -1,5 +1,4 @@
-//! The llama.cpp engine, through `llama-cpp-4` (notes/llama-cpp-4-migration.md
-//! §4.3-§5).
+//! The llama.cpp engine, through `llama-cpp-4`.
 
 mod chat;
 mod generate;

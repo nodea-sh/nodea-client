@@ -1,5 +1,5 @@
 //! Run one `ChatCompletionRequest` through the engine and print exactly the
-//! `GeneratedText` messages the node would send (notes/llama-cpp-4-migration.md §8.4).
+//! `GeneratedText` messages the node would send.
 //!
 //!   cargo run -p nodea-inference --bin nodea-infer -- \
 //!     --model smoke|tools|lfm2|gemma3|/path/to/file.gguf \

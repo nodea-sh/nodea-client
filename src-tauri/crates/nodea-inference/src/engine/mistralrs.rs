@@ -1,5 +1,5 @@
-//! The mistralrs engine. Phases 1-2 of notes/llama-cpp-4-migration.md only;
-//! deleted in Phase 3.
+//! The mistralrs engine, kept only until the llama.cpp engine has passed the
+//! same contract suite and the app switches to it.
 
 use crate::types::{
     ChatTurn, GenerationOptions, GenerationOutcome, GenerationUsage, LoadOptions, ModelInfo,

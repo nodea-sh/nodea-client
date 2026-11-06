@@ -1,10 +1,9 @@
-//! A request, as llama.cpp's chat layer wants it (notes/llama-cpp-4-migration.md
-//! §4.4 step 1, §5.1).
+//! A request, as llama.cpp's chat layer wants it.
 //!
 //! Everything here is a pure function of the request, so a request the node
 //! cannot honour fails before any generation starts. Templates, tool-call
 //! formats and reasoning are llama.cpp's (`common/chat`): we never parse model
-//! markers ourselves (D7).
+//! markers ourselves.
 
 use crate::types::{ChatTurn, GenerationOptions, DEFAULT_SYSTEM_PROMPT};
 use llama_cpp_4::chat::{ChatApplyParams, ToolChoice};

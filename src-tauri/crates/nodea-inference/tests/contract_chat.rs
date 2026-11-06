@@ -1,5 +1,5 @@
 //! Proto contract: plain chat and the sampling fields of
-//! `ChatCompletionRequest` (notes/llama-cpp-4-migration.md §5.1, §8.5).
+//! `ChatCompletionRequest`.
 
 mod support;
 

@@ -65,9 +65,8 @@ jobs:
         run: df -h / && du -sh src-tauri/target || true
 
   # The model logic on its own: crates/nodea-inference against real GGUFs, with
-  # no Tauri, webkit or .env.local. See notes/llama-cpp-4-migration.md §8.
-  # Phase 2: the same suite on both engines. A test only one engine can pass
-  # is ignored on the other with its reason (cfg_attr ignore).
+  # no Tauri, webkit or .env.local. The same suite on both engines; a test only
+  # one engine can pass is ignored on the other with its reason (cfg_attr ignore).
   inference:
     name: inference (${{ matrix.engine }})
     runs-on: ubuntu-latest
