@@ -124,7 +124,7 @@ jobs:
   # proves the Metal build compiles and links, and that the suite passes on
   # the macOS CPU path. Metal inference itself is the manual release check.
   inference-macos:
-    runs-on: macos-14
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
 
