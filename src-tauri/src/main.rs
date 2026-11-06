@@ -396,7 +396,7 @@ async fn connect_grpc(
     // one (e.g. a quick pause/resume) - see CancellationToken usage in
     // grpc_client.rs. Without this, resuming sharing could open a second
     // live stream for the same device alongside one disconnect_grpc never
-    // actually tore down, and mistralrs would try to load a second copy of
+    // actually tore down, and the engine would try to load a second copy of
     // the model into memory (see handle_load_model's is_model_loaded_and_matches
     // guard for the other half of that fix).
     let cancel_token = tokio_util::sync::CancellationToken::new();

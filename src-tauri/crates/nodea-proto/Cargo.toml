@@ -1,0 +1,16 @@
+[package]
+name = "nodea-proto"
+version = "0.1.0"
+description = "Generated gRPC types for protos/service.proto (package ai4all.v1)"
+license = "Apache-2.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+prost = "0.12"
+tonic = { version = "0.11", features = ["tls", "tls-webpki-roots"] }
+serde = { version = "1.0", features = ["derive"] }
+
+[build-dependencies]
+tonic-build = "0.11"
+protoc-bin-vendored = "3"

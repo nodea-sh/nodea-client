@@ -1,0 +1,42 @@
+[package]
+name = "nodea-inference"
+version = "0.1.0"
+description = "Model loading, generation and the proto contract, with no Tauri dependency"
+license = "Apache-2.0"
+edition = "2021"
+publish = false
+
+[features]
+default = []
+# llama.cpp GPU backends: Metal on macOS,
+# Vulkan on Windows and Linux. Without either, llama.cpp runs on the CPU.
+metal = ["llama-cpp-4/metal"]
+vulkan = ["llama-cpp-4/vulkan"]
+
+[dependencies]
+nodea-proto = { path = "../nodea-proto" }
+# Pinned exactly: the API breaks between minor versions. No default
+# features: they add rpc, mtmd and dynamic-link, which we do not use, and
+# never `prebuilt` (downloads binaries at build time) or `native`
+# (bakes the build host's CPU into the binary).
+llama-cpp-4 = { version = "=0.11.0", default-features = false }
+# For the log callback (llama.cpp reports load errors only in its log) and
+# the GPU memory probe.
+llama-cpp-sys-4 = { version = "=0.11.0", default-features = false }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1", features = ["full"] }
+tokio-util = "0.7"
+futures = "0.3"
+reqwest = { version = "0.11", features = ["json", "stream"] }
+sha2 = "0.10"
+toml = "0.8"
+# Total/available RAM on all three platforms (GlobalMemoryStatusEx on Windows).
+sysinfo = { version = "0.36.1", default-features = false, features = ["system"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# Metal recommendedMaxWorkingSetSize, the GPU's memory ceiling (src/memory.rs).
+objc2-metal = { version = "0.3.2", features = ["MTLDevice"] }
+
+[dev-dependencies]
+tempfile = "3.8"

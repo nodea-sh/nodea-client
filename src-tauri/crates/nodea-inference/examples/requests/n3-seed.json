@@ -1,0 +1,2 @@
+{"messages":[{"role":"user","content":"Name a colour."}],"max_tokens":12,
+ "temperature":0.8,"seed":7,"n":3}

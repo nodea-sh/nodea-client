@@ -1,5 +1,8 @@
 # Tauri
 src-tauri/target/
+
+# Test GGUFs fetched by `make fetch-test-models`
+.cache/
 src-tauri/WixTools/
 
 # Private working notes; never committed.
