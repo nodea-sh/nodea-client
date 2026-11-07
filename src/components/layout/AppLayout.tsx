@@ -6,6 +6,8 @@ import { DeviceLimitBlockedScreen } from '@/components/DeviceLimitBlockedScreen'
 const TITLES: Record<string, string> = {
   '/node': 'Node',
   '/fleet': 'Fleet',
+  '/models': 'Models',
+  '/api-keys': 'API keys',
   '/settings': 'Settings',
   '/playground': 'Playground (dev)',
   '/dev-logs': 'Dev Logs (dev)',

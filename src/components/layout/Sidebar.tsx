@@ -1,15 +1,19 @@
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { Broadcast, Monitor, Gear, CaretDown, Robot, Bug, ArrowClockwise, X } from '@phosphor-icons/react'
+import { openUrl } from '@tauri-apps/plugin-opener'
+import { Broadcast, Monitor, Gear, CaretDown, Robot, Bug, ArrowClockwise, X, Cube, Key, ArrowSquareOut } from '@phosphor-icons/react'
 import { useAuth } from '@/contexts/AuthContext'
 import { NodeStatusWidget } from '@/components/NodeStatusWidget'
 import type { NodeState } from '@/hooks/useNodePhase'
 import { useUpdater, type Updater } from '@/hooks/useUpdater'
 import { WEB_CONSOLE_URL } from '@/lib/webConsole'
+import { isTauriApp } from '@/lib/platform'
 
 const NAV = [
   { to: '/node', label: 'Node', Icon: Broadcast },
   { to: '/fleet', label: 'Fleet', Icon: Monitor },
+  { to: '/models', label: 'Models', Icon: Cube },
+  { to: '/api-keys', label: 'API keys', Icon: Key },
   { to: '/settings', label: 'Settings', Icon: Gear },
 ]
 
@@ -49,6 +53,13 @@ function UpdateItem({ updater }: { updater: Updater }) {
       </button>
     </div>
   )
+}
+
+// window.open does nothing in the Tauri webview; the opener plugin hands
+// the URL to the system browser (its scope allows app.getnodea.com).
+function openWebConsole() {
+  if (isTauriApp()) openUrl(WEB_CONSOLE_URL).catch(console.error)
+  else window.open(WEB_CONSOLE_URL, '_blank')
 }
 
 export function Sidebar({ node }: { node: NodeState }) {
@@ -97,6 +108,15 @@ export function Sidebar({ node }: { node: NodeState }) {
 
       <UpdateItem updater={updater} />
 
+      {/* Always visible, right above the account menu */}
+      <div className="border-t border-[var(--n-line-strong)] px-2.5 py-1.5">
+        <button onClick={openWebConsole}
+          className="flex w-full items-center gap-2.5 rounded-[8px] px-2.5 py-2 text-left text-[14px] font-semibold leading-none text-[var(--n-text-4)] transition-colors hover:bg-[var(--n-tint-hover)] hover:text-[var(--n-text-2)]">
+          <ArrowSquareOut size={15} />
+          Open Web Console
+        </button>
+      </div>
+
       <div className="relative border-t border-[var(--n-line-strong)]">
         {accountOpen && (
           <div className="absolute bottom-[calc(100%+6px)] left-2.5 right-2.5 z-[2] rounded-[10px] bg-[var(--n-raised)] p-1.5 shadow-[var(--n-shadow-md)]">
@@ -110,7 +130,6 @@ export function Sidebar({ node }: { node: NodeState }) {
             </div>
             <div className="mx-0.5 mb-[5px] h-px bg-[var(--n-border)]" />
             {[
-              { label: 'Web console ↗', onClick: () => window.open(WEB_CONSOLE_URL, '_blank') },
               { label: 'Check for updates', onClick: () => { setAccountOpen(false); updater.check() } },
               { label: 'Sign out', onClick: logout },
             ].map(({ label, onClick }) => (

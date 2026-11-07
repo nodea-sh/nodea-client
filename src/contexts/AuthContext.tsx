@@ -512,7 +512,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         organization,
         organizationLoadError,
         isAuthenticated: !!user,
-        isAdmin: user?.role === 'admin',
+        // The organization's own answer wins: the role on `user` is read once
+        // at sign-in, so it still says "standard" for someone who has just
+        // created an organization (and so become its admin).
+        isAdmin: (organization?.current_user_role ?? user?.role) === 'admin',
         isLoading,
         login,
         signup,

@@ -11,6 +11,15 @@ export default defineConfig(({ command, mode }) => {
     )
   }
 
+  // The app only ever talks to the backend through its public name
+  // (api.getnodea.com), never the hosting provider's - it ends up in the
+  // API examples users copy.
+  if (env.VITE_API_BASE_URL?.includes('fly.dev')) {
+    throw new Error(
+      `VITE_API_BASE_URL is ${env.VITE_API_BASE_URL}: use https://api.getnodea.com/site instead.`
+    )
+  }
+
   return {
     plugins: [react()],
     clearScreen: false,

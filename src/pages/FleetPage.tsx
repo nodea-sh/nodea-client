@@ -61,7 +61,7 @@ export function FleetPage() {
                   {d.name}
                   {isThis && (
                     <span className="ml-1.5 rounded-[4px] border border-[var(--n-accent-800)] px-[5px] py-0.5 text-[12px] font-medium leading-none text-[var(--n-accent)]">
-                      this Mac
+                      this device
                     </span>
                   )}
                 </span>
@@ -84,7 +84,7 @@ export function FleetPage() {
 
       <div className="mt-5 flex items-center justify-between rounded-[12px] border border-[var(--n-line)] bg-[var(--n-sidebar)] px-[18px] py-3.5">
         <span className="text-[14.5px] leading-[1.5] text-[var(--n-text-4)]">
-          Keys, usage history and team live on the web.
+          Usage history and team live on the web.
         </span>
         <a href={WEB_CONSOLE_URL} target="_blank" rel="noreferrer"
            className="text-[14px] font-semibold leading-none text-[var(--n-accent-400)]">

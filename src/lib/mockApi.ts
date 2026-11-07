@@ -2,6 +2,10 @@
 import type {
   Me,
   ApiKeyResponse,
+  OrgModel,
+  CatalogModel,
+  ModelCatalog,
+  OnboardingStatus,
   DeviceResponse,
   DeviceDetailResponse,
   TokenStatsResponse,
@@ -18,26 +22,67 @@ import type {
 const mockApiKeys: ApiKeyResponse[] = [
   {
     id: 1,
-    user_id: 'demo-user',
     name: 'Production Server',
-    value: 'ai4a_prod_1234567890abcdef1234567890abcdef',
+    value: 'Xk3...9fQa',
+    created_by: 'demo@getnodea.com',
+    created_by_former_member: false,
+    disabled: false,
     created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
   },
   {
     id: 2,
-    user_id: 'demo-user',
-    name: 'Mobile App',
-    value: 'ai4a_mobile_abcdef1234567890abcdef1234567890',
+    name: 'Support bot',
+    value: 'p0Q...Lm2w',
+    created_by: 'alice@getnodea.com',
+    created_by_former_member: false,
+    disabled: false,
     created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
   },
   {
     id: 3,
-    user_id: 'demo-user',
-    name: 'Development Testing',
-    value: 'ai4a_dev_test_9876543210fedcba9876543210fedcba',
-    created_at: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
+    name: 'Old CI',
+    value: 'Zr8...0dTe',
+    created_by: 'gone@getnodea.com',
+    created_by_former_member: true,
+    disabled: true,
+    created_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
   },
 ]
+
+const catalogItem = (hf_repo: string, downloads: number): CatalogModel => ({
+  ref: `${hf_repo}:Q4_K_M`,
+  hf_repo,
+  gguf_filename: `${hf_repo.split('/')[1].replace(/-GGUF$/, '')}-Q4_K_M.gguf`,
+  publisher: hf_repo.split('/')[0],
+  downloads,
+  likes: Math.round(downloads / 100),
+  pipeline_tag: 'text-generation',
+  last_modified: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString(),
+  in_organization: false,
+  quantization: 'Q4_K_M',
+})
+
+const mockCatalog: CatalogModel[] = [
+  catalogItem('bartowski/Llama-3.2-3B-Instruct-GGUF', 410000),
+  catalogItem('bartowski/Qwen2.5-Coder-7B-Instruct-GGUF', 380000),
+  catalogItem('bartowski/Meta-Llama-3.1-8B-Instruct-GGUF', 350000),
+  catalogItem('bartowski/Llama-3.2-1B-Instruct-GGUF', 300000),
+  catalogItem('unsloth/gemma-3-4b-it-GGUF', 250000),
+  catalogItem('bartowski/Qwen2.5-32B-Instruct-GGUF', 200000),
+  catalogItem('ggml-org/Llama-3.3-70B-Instruct-GGUF', 150000),
+  catalogItem('LiquidAI/LFM2-1.2B-GGUF', 90000),
+]
+
+// What the backend reports for a freshly added model: its memory need is
+// priced from the GGUF size, so the mock reuses the same estimate the app does.
+const mockOrgModel = (ref: string, required_memory_mb: number): OrgModel => ({
+  ref,
+  required_memory_mb,
+  enabled: true,
+  device_count: 0,
+  tokens_total: 0,
+  pending_device_count: 0,
+})
 
 const mockDevices: DeviceResponse[] = [
   {
@@ -103,7 +148,7 @@ const generateTimeSeriesData = (range: TokenStatsRange, baseValue: number): Toke
   }))
 }
 
-const mockModels = [
+const mockServedModels = [
   { id: 'llama-3-8b', name: 'Llama 3 8B' },
   { id: 'llama-3-70b', name: 'Llama 3 70B' },
   { id: 'mistral-7b', name: 'Mistral 7B' },
@@ -219,6 +264,15 @@ const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
  *   only-admin   - the only admin, so leaving is blocked
  *   last-member  - the last member, so leaving deletes the organization
  */
+/**
+ * Further demo switches (with ?demo=true):
+ *   ?models=none    the organization has added no models yet
+ *   ?catalog=down   Hugging Face is unreachable (GET /v1/model-catalog 502s)
+ *   ?setup=fresh    a new organization: no models, no keys, and nothing on
+ *                   the setup checklist done (otherwise it is complete)
+ */
+const demoParam = (name: string) => new URLSearchParams(window.location.search).get(name)
+
 type DemoAccountState = 'member' | 'orgless' | 'inactive' | 'deleted' | 'only-admin' | 'last-member'
 
 const demoAccountState = (): DemoAccountState => {
@@ -239,6 +293,8 @@ export class MockApiClient {
   private accountDeletedHandler: (() => void) | null = null
   // What leave/delete did during this page's life, on top of ?account=.
   private left = false
+  // Created an organization in onboarding, which ends ?account=orgless.
+  private joined = false
   private deleted = false
 
   setAccountDeletedHandler(handler: (() => void) | null) {
@@ -248,6 +304,7 @@ export class MockApiClient {
   private accountState(): DemoAccountState {
     if (this.deleted) return 'deleted'
     if (this.left) return 'orgless'
+    if (this.joined) return 'member'
     return demoAccountState()
   }
 
@@ -293,7 +350,17 @@ export class MockApiClient {
     this.deleted = true
     return { organization_deleted: false, auth_user_deleted: true }
   }
-  private apiKeys = [...mockApiKeys]
+  private apiKeys = demoParam('setup') === 'fresh' ? [] : [...mockApiKeys]
+  private models: OrgModel[] =
+    demoParam('models') === 'none' || demoParam('setup') === 'fresh'
+      ? []
+      : [
+          { ...mockOrgModel('bartowski/Llama-3.2-3B-Instruct-GGUF:Q4_K_M', 3044), device_count: 2, tokens_total: 1284000 },
+          { ...mockOrgModel('bartowski/Qwen2.5-Coder-7B-Instruct-GGUF:Q4_K_M', 5759), enabled: false },
+        ]
+  private keyCreatedAt: number | null = null
+  private requestConfirmed = false
+  private onboardingDismissed = false
   private members = [...mockMembers]
   private invitations = [...mockInvitations]
   private organization = { ...mockOrganization }
@@ -313,14 +380,22 @@ export class MockApiClient {
 
   async createApiKey(name: string): Promise<ApiKeyResponse> {
     await delay(500)
+    if (this.apiKeys.some((k) => k.name === name)) {
+      throw demoApiError('An API key with this name already exists', 409)
+    }
+    const secret = `${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`
     const newKey: ApiKeyResponse = {
       id: mockApiKeyIdCounter++,
-      user_id: 'demo-user',
       name,
-      value: `ai4a_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`,
+      value: secret,
+      created_by: 'demo@getnodea.com',
+      created_by_former_member: false,
+      disabled: false,
       created_at: new Date().toISOString(),
     }
-    this.apiKeys.push(newKey)
+    // The list only ever shows the masked form, like the backend.
+    this.apiKeys.push({ ...newKey, value: `${secret.slice(0, 3)}...${secret.slice(-4)}` })
+    this.keyCreatedAt = Date.now()
     return newKey
   }
 
@@ -330,6 +405,87 @@ export class MockApiClient {
     if (index !== -1) {
       this.apiKeys.splice(index, 1)
     }
+  }
+
+  // Models
+  async getOrgModels(): Promise<OrgModel[]> {
+    await delay(200)
+    return this.models.map((m) => ({ ...m }))
+  }
+
+  async getModelCatalog(): Promise<ModelCatalog> {
+    await delay(400)
+    if (demoParam('catalog') === 'down') {
+      throw demoApiError('Hugging Face is unreachable, try again shortly', 502)
+    }
+    const added = new Set(this.models.map((m) => m.ref))
+    return {
+      items: mockCatalog.map((c) => ({ ...c, in_organization: added.has(c.ref) })),
+      fetched_at: new Date().toISOString(),
+      stale: false,
+    }
+  }
+
+  async addModel(ref: string): Promise<OrgModel> {
+    await delay(500)
+    if (this.models.some((m) => m.ref === ref)) {
+      throw demoApiError('The model is already in the organization', 409)
+    }
+    if (!mockCatalog.some((c) => c.ref === ref)) {
+      throw demoApiError('The model is not in the catalog', 400)
+    }
+    const params = Number(/(\d+(?:\.\d+)?)B/i.exec(ref)?.[1] ?? 3)
+    const model = mockOrgModel(ref, Math.ceil(params * 0.61 * 1024 * 1.2) + 512)
+    this.models.push(model)
+    return { ...model }
+  }
+
+  async setModelEnabled(ref: string, enabled: boolean): Promise<OrgModel> {
+    await delay(300)
+    const model = this.models.find((m) => m.ref === ref)
+    if (!model) throw demoApiError('Model not found', 404)
+    model.enabled = enabled
+    return { ...model }
+  }
+
+  async removeModel(ref: string): Promise<void> {
+    await delay(300)
+    this.models = this.models.filter((m) => m.ref !== ref)
+  }
+
+  async getAvailableModels(): Promise<string[]> {
+    await delay(150)
+    return this.models.filter((m) => m.enabled).map((m) => m.ref).slice(0, 1)
+  }
+
+  // Setup checklist. A request is "made" a few seconds after the first key
+  // is created, standing in for the user running the snippet.
+  async getOnboardingStatus(): Promise<OnboardingStatus> {
+    await delay(150)
+    const isAdmin = demoParam('role') !== 'standard'
+    const fresh = demoParam('setup') === 'fresh'
+    const keyCreated = !fresh || this.keyCreatedAt !== null
+    const requestMade =
+      !fresh ||
+      this.requestConfirmed ||
+      (this.keyCreatedAt !== null && Date.now() - this.keyCreatedAt > 4000)
+    const apiKeyCreated = isAdmin && keyCreated
+    const appInstalled = true
+    return {
+      app_installed: appInstalled,
+      api_key_created: apiKeyCreated,
+      first_request_made: requestMade,
+      api_key_step_applicable: isAdmin,
+      dismissed: this.onboardingDismissed,
+      completed: appInstalled && (apiKeyCreated || !isAdmin) && requestMade,
+    }
+  }
+
+  async updateOnboarding(data: { dismissed?: boolean; request_confirmed?: boolean }): Promise<OnboardingStatus> {
+    await delay(150)
+    if (data.dismissed !== undefined) this.onboardingDismissed = data.dismissed
+    if (data.request_confirmed !== undefined) this.requestConfirmed = data.request_confirmed
+    return this.getOnboardingStatus()
   }
 
   async getUserDevices(): Promise<DeviceResponse[]> {
@@ -520,7 +676,12 @@ export class MockApiClient {
     await delay(500)
     // In mock mode, just update the existing organization
     this.organization.name = name
+    this.left = false
+    this.joined = true
     this.organization.slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+    // A new organization, as far as the app can tell (see sessionOrganization
+    // in useNodePhase.ts).
+    this.organization.uuid = `demo-org-${Date.now()}`
     console.log('Mock: Organization created:', this.organization)
     return {
       organization: { ...this.organization }
@@ -570,7 +731,7 @@ class MockEventSource {
 
       switch (type) {
         case 'models':
-          this.sendMessage(JSON.stringify(mockModels))
+          this.sendMessage(JSON.stringify(mockServedModels))
           break
 
         case 'devices':
