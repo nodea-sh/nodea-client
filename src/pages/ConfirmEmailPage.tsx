@@ -6,12 +6,16 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { apiClient } from '@/lib/api'
+import { useAuth } from '@/contexts/AuthContext'
 
 type ConfirmState = 'loading' | 'confirmed' | 'expired' | 'error'
 
 export function ConfirmEmailPage() {
   const { token } = useParams<{ token: string }>()
   const navigate = useNavigate()
+  // Signing up signs the user in, so the link is usually opened with a session.
+  const { isAuthenticated, user } = useAuth()
+  const knownEmail = user?.email ?? ''
 
   const [state, setState] = useState<ConfirmState>('loading')
   const [error, setError] = useState<string | null>(null)
@@ -20,9 +24,8 @@ export function ConfirmEmailPage() {
   const [resent, setResent] = useState(false)
 
   useEffect(() => {
-    const storedEmail = sessionStorage.getItem('pending_confirmation_email')
-    if (storedEmail) {
-      setEmail(storedEmail)
+    if (knownEmail) {
+      setEmail(knownEmail)
     }
 
     if (!token) {
@@ -41,7 +44,6 @@ export function ConfirmEmailPage() {
       setError(null)
       await apiClient.confirmEmail(confirmToken)
       setState('confirmed')
-      sessionStorage.removeItem('pending_confirmation_email')
     } catch (err) {
       setState('expired')
       setError(err instanceof Error ? err.message : 'This link has expired or was already used')
@@ -79,11 +81,17 @@ export function ConfirmEmailPage() {
             <div className="space-y-2">
               <h2 className="text-2xl font-bold">Email confirmed!</h2>
               <p className="text-muted-foreground">
-                Your account is now active. You can log in.
+                {isAuthenticated
+                  ? 'You can now invite teammates to your organization.'
+                  : 'You can log in.'}
               </p>
             </div>
-            <Button onClick={() => navigate('/login')} size="lg" className="w-full">
-              Go to Login
+            <Button
+              onClick={() => navigate(isAuthenticated ? '/node' : '/login')}
+              size="lg"
+              className="w-full"
+            >
+              {isAuthenticated ? 'Continue' : 'Go to Login'}
             </Button>
           </div>
         )
@@ -106,7 +114,7 @@ export function ConfirmEmailPage() {
               </p>
             ) : (
               <div className="space-y-3">
-                {!sessionStorage.getItem('pending_confirmation_email') && (
+                {!knownEmail && (
                   <div className="space-y-2">
                     <label htmlFor="resend-email" className="text-sm font-medium">
                       Email

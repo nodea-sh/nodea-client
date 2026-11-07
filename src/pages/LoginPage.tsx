@@ -3,6 +3,8 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { apiClient } from '@/lib/api'
 
+// Only accounts created before signups could log in unconfirmed still get
+// this from Supabase; confirming (or resending) the link unblocks them.
 function isEmailNotConfirmedError(message: string): boolean {
   return message.toLowerCase().includes('email not confirmed')
 }
