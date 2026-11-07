@@ -508,22 +508,22 @@ jobs:
         run: |
           set -euo pipefail
           FILE=$(scripts/select_bundle.sh '${{ matrix.bundle_subpath }}' src-tauri/target/release/bundle)
-          mkdir -p dist
-          cp "$FILE" "dist/${{ matrix.dest_filename }}"
+          mkdir -p bundles
+          cp "$FILE" "bundles/${{ matrix.dest_filename }}"
           echo "Staged $FILE ($(du -h "$FILE" | cut -f1)) as ${{ matrix.dest_filename }}"
 
           # On Linux and Windows this is the installer again, so the copy is
           # a no-op; on macOS it adds the .app tarball. Either way the .sig
           # sits beside it under the same fixed name.
           UPDATER=$(scripts/select_bundle.sh '${{ matrix.updater_subpath }}' src-tauri/target/release/bundle)
-          cp "$UPDATER" "dist/${{ matrix.updater_filename }}"
-          cp "$UPDATER.sig" "dist/${{ matrix.updater_filename }}.sig"
+          cp "$UPDATER" "bundles/${{ matrix.updater_filename }}"
+          cp "$UPDATER.sig" "bundles/${{ matrix.updater_filename }}.sig"
           echo "Staged $UPDATER and its signature as ${{ matrix.updater_filename }}"
 
       - uses: actions/upload-artifact@v4
         with:
           name: bundle-${{ matrix.platform }}
-          path: dist/
+          path: bundles/
           if-no-files-found: error
           retention-days: 7
 
@@ -550,7 +550,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           pattern: bundle-*
-          path: dist
+          path: bundles
           merge-multiple: true
 
       # The in-app updater reads this from releases/latest/download/, which
@@ -561,11 +561,11 @@ jobs:
           python3 scripts/updater_manifest.py \
             --version "$VERSION" \
             --repo "$GITHUB_REPOSITORY" \
-            --assets dist > dist/latest.json
-          cat dist/latest.json
+            --assets bundles > bundles/latest.json
+          cat bundles/latest.json
 
       - name: Write checksums
-        working-directory: dist
+        working-directory: bundles
         run: |
           sha256sum Nodea-* latest.json > SHA256SUMS
           cat SHA256SUMS
@@ -578,14 +578,14 @@ jobs:
         continue-on-error: ${{ github.event.repository.private }}
         with:
           subject-path: |
-            dist/Nodea-*
-            dist/latest.json
+            bundles/Nodea-*
+            bundles/latest.json
 
       - name: Create the draft release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "v$VERSION" dist/* \
+          gh release create "v$VERSION" bundles/* \
             --repo "$GITHUB_REPOSITORY" \
             --verify-tag \
             --draft \
