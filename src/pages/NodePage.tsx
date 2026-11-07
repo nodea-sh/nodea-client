@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { apiClient, type TokenStatsResponse } from '@/lib/api'
 import { ThroughputChart, type ChartRange } from '@/components/ThroughputChart'
 import type { NodeState } from '@/hooks/useNodePhase'
+import { useMachineUsage, type MachineUsage } from '@/hooks/useMachineUsage'
 
 export function NodePage() {
   const node = useOutletContext<NodeState>()
@@ -12,6 +13,8 @@ export function NodePage() {
   const [range, setRange] = useState<ChartRange>('1d')
   const [chartStats, setChartStats] = useState<TokenStatsResponse[]>([])
   const [dayStats, setDayStats] = useState<TokenStatsResponse[]>([])
+  const ready = node.phase === 'serving' || node.phase === 'paused'
+  const usage = useMachineUsage(ready)
 
   useEffect(() => {
     let cancelled = false
@@ -127,9 +130,7 @@ export function NodePage() {
       spin: false,
       title: 'This Mac is serving the network.',
       body: '',
-      ringPct: 71,
-      ringLabel: '71%',
-      ringCaption: 'capacity used',
+      ...usageRing(usage),
       ringColor: 'var(--n-accent)',
     },
     paused: {
@@ -138,9 +139,7 @@ export function NodePage() {
       spin: false,
       title: 'Paused. This Mac is idle.',
       body: `${node.modelName} is still in memory. Turn sharing back on and it picks up within seconds.`,
-      ringPct: 0,
-      ringLabel: '0%',
-      ringCaption: 'capacity used',
+      ...usageRing(usage),
       ringColor: 'var(--n-mute-2)',
     },
   }[node.phase]
@@ -162,7 +161,8 @@ export function NodePage() {
             <p className="mt-2.5 max-w-[400px] text-[15px] leading-[1.6] text-[var(--n-text-4)]">{hero.body}</p>
           )}
         </div>
-        <CapacityRing pct={hero.ringPct} label={hero.ringLabel} caption={hero.ringCaption} color={hero.ringColor} />
+        <CapacityRing pct={hero.ringPct} label={hero.ringLabel} caption={hero.ringCaption} color={hero.ringColor}
+                      tooltip={ready ? USAGE_TOOLTIP : undefined} />
       </div>
 
       {gettingReady ? <ReadyChecklist node={node} /> : (
@@ -175,10 +175,23 @@ export function NodePage() {
   )
 }
 
-function CapacityRing({ pct, label, caption, color }: { pct: number; label: string; caption: string; color: string }) {
+const USAGE_TOOLTIP =
+  'How busy this machine is right now: GPU utilization, or CPU when the GPU reports none. ' +
+  'Counts every app, not only Nodea. Updates every 2 seconds.'
+
+/** The serving/paused ring: real machine usage, or a dash until the first reading. */
+function usageRing(usage: MachineUsage | null) {
+  if (!usage) return { ringPct: 0, ringLabel: '—', ringCaption: 'machine usage' }
+  const pct = Math.max(0, Math.min(100, Math.round(usage.percent)))
+  return { ringPct: pct, ringLabel: `${pct}%`, ringCaption: usage.source === 'gpu' ? 'GPU in use' : 'CPU in use' }
+}
+
+function CapacityRing({ pct, label, caption, color, tooltip }: {
+  pct: number; label: string; caption: string; color: string; tooltip?: string
+}) {
   const CIRC = 440
   return (
-    <div className="relative h-[168px] w-[168px] flex-none">
+    <div className="relative h-[168px] w-[168px] flex-none" title={tooltip} data-testid="usage-ring">
       <svg width="168" height="168" viewBox="0 0 168 168">
         <circle cx="84" cy="84" r="70" fill="none" stroke="var(--n-line-strong)" strokeWidth="10" />
         <circle cx="84" cy="84" r="70" fill="none" stroke={color} strokeWidth="10" strokeLinecap="round"

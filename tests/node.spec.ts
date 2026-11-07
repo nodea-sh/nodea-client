@@ -93,6 +93,54 @@ test.describe('Node phases (demo mode)', () => {
   })
 })
 
+test.describe('Node usage ring (demo mode, #317)', () => {
+  const ring = (page: Page) => page.getByTestId('usage-ring')
+
+  for (const pct of [0, 50, 100]) {
+    test(`serving: the ring shows the machine's real usage (${pct}%)`, async ({ page }) => {
+      await page.goto(`/node?demo=true&phase=serving&usage=${pct}`)
+
+      await expect(ring(page)).toContainText(`${pct}%`)
+      await expect(ring(page)).toContainText('GPU in use')
+      await expect(ring(page)).not.toContainText('71%')
+    })
+  }
+
+  test('serving but idle: the ring reads 0%, not a made-up figure', async ({ page }) => {
+    await gotoPhase(page, 'serving')
+
+    await expect(ring(page)).toContainText('0%')
+    await expect(ring(page)).toHaveAttribute('title', /GPU utilization.*every app/)
+  })
+
+  test('without a GPU reading the ring says it is CPU', async ({ page }) => {
+    await page.goto('/node?demo=true&phase=serving&usage=33&usageSource=cpu')
+
+    await expect(ring(page)).toContainText('33%')
+    await expect(ring(page)).toContainText('CPU in use')
+  })
+
+  test('paused still shows real usage, since other apps keep running', async ({ page }) => {
+    await page.goto('/node?demo=true&phase=paused&usage=20')
+
+    await expect(ring(page)).toContainText('20%')
+  })
+
+  test('sidebar widget shows no percentage while sharing, even when idle', async ({ page }) => {
+    await gotoPhase(page, 'serving')
+
+    await expect(page.getByText('Sharing', { exact: true }).first()).toBeVisible()
+    await expect(page.getByTestId('widget-value')).toHaveCount(0)
+    await expect(page.locator('button[aria-pressed]')).not.toContainText('100%')
+  })
+
+  test('sidebar widget still shows download progress', async ({ page }) => {
+    await gotoPhase(page, 'downloading')
+
+    await expect(page.getByTestId('widget-value')).toHaveText('62%')
+  })
+})
+
 test.describe('Node throughput chart (demo mode)', () => {
   test('draws one bar per bucket of the selected range', async ({ page }) => {
     await gotoPhase(page, 'serving')

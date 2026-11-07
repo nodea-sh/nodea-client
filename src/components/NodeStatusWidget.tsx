@@ -16,8 +16,10 @@ export function NodeStatusWidget({ node }: { node: NodeState }) {
     stalled: { icon: <WarningCircle size={14} color="var(--n-text-2)" />, title: 'Download stalled', value: `${downloadProgress}%`, valueColor: 'var(--n-text-3)' },
     offline: { icon: <WarningCircle size={14} color="var(--n-text-2)" />, title: 'Offline', value: '—', valueColor: 'var(--n-text-3)' },
     refused: { icon: <WarningCircle size={14} color="var(--n-text-2)" />, title: 'Not sharing', value: '—', valueColor: 'var(--n-text-3)' },
-    serving: { icon: <Dot on />, title: 'Sharing', value: '100%', valueColor: 'var(--n-accent-300)' },
-    paused: { icon: <Dot />, title: 'Paused', value: '100%', valueColor: 'var(--n-text-3)' },
+    // No value while ready: "Sharing" already says it is on, and a number here
+    // used to be a hardcoded 100% (#317). The Node page shows real usage.
+    serving: { icon: <Dot on />, title: 'Sharing', value: null, valueColor: 'var(--n-accent-300)' },
+    paused: { icon: <Dot />, title: 'Paused', value: null, valueColor: 'var(--n-text-3)' },
   }[phase]
 
   const caption = {
@@ -43,9 +45,12 @@ export function NodeStatusWidget({ node }: { node: NodeState }) {
           {header.icon}
           <span className="text-[14px] font-semibold leading-none text-[var(--n-text)]">{header.title}</span>
         </div>
-        <span className="font-mono text-[13px] font-semibold leading-none" style={{ color: header.valueColor }}>
-          {header.value}
-        </span>
+        {header.value && (
+          <span className="font-mono text-[13px] font-semibold leading-none" style={{ color: header.valueColor }}
+                data-testid="widget-value">
+            {header.value}
+          </span>
+        )}
       </div>
 
       <div className="mt-2 flex items-center gap-1.5">

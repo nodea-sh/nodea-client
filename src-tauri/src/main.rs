@@ -205,6 +205,7 @@ struct AppState {
     // the download outside the model_manager lock nothing else would stop two
     // switches downloading the same file at once.
     model_switch: Arc<Mutex<()>>,
+    usage_sampler: Arc<ai4all_tauri::machine_usage::UsageSampler>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -331,6 +332,17 @@ async fn is_authenticated(state: tauri::State<'_, AppState>) -> Result<bool, Str
 #[tauri::command]
 fn get_device_id(state: tauri::State<'_, AppState>) -> String {
     state.device_id.as_ref().clone()
+}
+
+/// How busy this machine is (GPU, else CPU), for the Node page's usage ring.
+#[tauri::command]
+async fn machine_usage(
+    state: tauri::State<'_, AppState>,
+) -> Result<ai4all_tauri::machine_usage::MachineUsage, String> {
+    let sampler = state.usage_sampler.clone();
+    tokio::task::spawn_blocking(move || sampler.sample())
+        .await
+        .map_err(|e| e.to_string())
 }
 
 /// Helper function to update connection status and emit event
@@ -1187,6 +1199,7 @@ fn main() {
                 generations: Arc::new(ai4all_tauri::generations::Generations::new()),
                 model_cache_dir: Arc::new(model_cache_dir),
                 model_switch: Arc::new(Mutex::new(())),
+                usage_sampler: Arc::new(ai4all_tauri::machine_usage::UsageSampler::new()),
             });
 
             build_tray(app)?;
@@ -1238,6 +1251,7 @@ fn main() {
             logout,
             is_authenticated,
             get_device_id,
+            machine_usage,
             auto_login,
             check_stored_auth,
             connect_grpc,
