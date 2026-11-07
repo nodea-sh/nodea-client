@@ -39,7 +39,8 @@ export type NodePhase =
 
 export interface NodeState {
   phase: NodePhase
-  modelName: string
+  /** The model the backend assigned; undefined until a LoadModel names one */
+  modelName?: string
   /** 0-100, only meaningful while downloading */
   downloadProgress: number
   message?: string
@@ -141,7 +142,7 @@ export function useNodePhase(): NodeState {
 
   return {
     phase,
-    modelName: model?.model_name ?? 'Llama 3.1 8B Instruct',
+    modelName: model?.model_name,
     downloadProgress: Math.round(model?.progress ?? 0),
     // The message that explains the phase: the model's for a model failure,
     // the connection's for an offline or refused node.

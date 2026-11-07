@@ -48,33 +48,39 @@ export function NodeStatusWidget({ node }: { node: NodeState }) {
         </span>
       </div>
 
-      <div className="mt-2 flex items-center gap-1.5">
-        <Cube size={13} color="var(--n-text-4)" />
-        <span className="truncate text-[13px] leading-[1.3] text-[var(--n-text-2)]">{modelName}</span>
-      </div>
-
-      {/* two-segment track */}
-      <div className="mt-[9px] flex gap-1">
-        <span className="block h-1 flex-1 overflow-hidden rounded-[2px] bg-[var(--n-border)]">
-          <span className="block h-full rounded-[2px] transition-[width] duration-[400ms] ease-out"
-                style={{ width: bar1, background: bar1Color }} />
-        </span>
-        <span className="relative block h-1 flex-1 overflow-hidden rounded-[2px] bg-[var(--n-border)]">
-          {phase === 'loading' ? (
-            <span className="n-slide absolute left-0 top-0 h-full w-[30%] rounded-[2px] bg-[var(--n-accent)]" />
-          ) : ready ? (
-            <span className="block h-full w-full rounded-[2px] bg-[var(--n-accent-700)]" />
-          ) : null}
-        </span>
-      </div>
-
-      {!ready && (
-        <div className="mt-1.5 flex justify-between text-[11px] font-semibold uppercase leading-none tracking-[0.05em]">
-          <span style={{ color: onStep1 ? 'var(--n-accent-300)' : 'var(--n-text-4)' }}>
-            {onStep1 ? '1 · Download' : '1 · Done'}
-          </span>
-          <span style={{ color: onStep2 ? 'var(--n-accent-300)' : 'var(--n-text-4)' }}>2 · Load</span>
+      {modelName && (
+        <div className="mt-2 flex items-center gap-1.5">
+          <Cube size={13} color="var(--n-text-4)" />
+          <span className="truncate text-[13px] leading-[1.3] text-[var(--n-text-2)]">{modelName}</span>
         </div>
+      )}
+
+      {/* two-segment track; none while connecting, when nothing is assigned yet */}
+      {phase !== 'connecting' && (
+        <>
+          <div className="mt-[9px] flex gap-1">
+            <span className="block h-1 flex-1 overflow-hidden rounded-[2px] bg-[var(--n-border)]">
+              <span className="block h-full rounded-[2px] transition-[width] duration-[400ms] ease-out"
+                    style={{ width: bar1, background: bar1Color }} />
+            </span>
+            <span className="relative block h-1 flex-1 overflow-hidden rounded-[2px] bg-[var(--n-border)]">
+              {phase === 'loading' ? (
+                <span className="n-slide absolute left-0 top-0 h-full w-[30%] rounded-[2px] bg-[var(--n-accent)]" />
+              ) : ready ? (
+                <span className="block h-full w-full rounded-[2px] bg-[var(--n-accent-700)]" />
+              ) : null}
+            </span>
+          </div>
+
+          {!ready && (
+            <div className="mt-1.5 flex justify-between text-[11px] font-semibold uppercase leading-none tracking-[0.05em]">
+              <span style={{ color: onStep1 ? 'var(--n-accent-300)' : 'var(--n-text-4)' }}>
+                {onStep1 ? '1 · Download' : '1 · Done'}
+              </span>
+              <span style={{ color: onStep2 ? 'var(--n-accent-300)' : 'var(--n-text-4)' }}>2 · Load</span>
+            </div>
+          )}
+        </>
       )}
 
       {caption && <div className="mt-[9px] text-[13px] leading-[1.4] text-[var(--n-text-3)]">{caption}</div>}

@@ -20,6 +20,23 @@ test.describe('Node phases (demo mode)', () => {
     await expect(page.getByText('62%').first()).toBeVisible()
   })
 
+  test('connecting with no model assigned shows no model', async ({ page }) => {
+    await gotoPhase(page, 'connecting')
+
+    await expect(page.locator('h1')).toHaveText('Reaching the coordinator.')
+    await expect(page.getByText('Llama 3.1 8B Instruct')).toHaveCount(0)
+    await expect(page.getByText(/cached/i)).toHaveCount(0)
+    await expect(page.getByText('Fetching weights')).toHaveCount(0)
+    await expect(page.getByText('1 · Done')).toHaveCount(0)
+  })
+
+  test('downloading names the model it was assigned', async ({ page }) => {
+    await gotoPhase(page, 'downloading')
+
+    // FORCED_MODEL_NAME in src/lib/mockTauri.ts, sent as the status's model_name.
+    await expect(page.getByText('Llama 3.1 8B Instruct').first()).toBeVisible()
+  })
+
   test('loading: widget and hero agree', async ({ page }) => {
     await gotoPhase(page, 'loading')
 

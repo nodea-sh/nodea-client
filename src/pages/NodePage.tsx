@@ -48,7 +48,7 @@ export function NodePage() {
       KickerIcon: DownloadSimple,
       spin: false,
       title: 'Fetching the model for this Mac.',
-      body: `${node.modelName}, chosen for this hardware. It downloads once and stays cached.`,
+      body: `${node.modelName ?? 'The model'}, chosen for this hardware. It downloads once and stays cached.`,
       ringPct: node.downloadProgress,
       ringLabel: `${node.downloadProgress}%`,
       ringCaption: 'downloaded',
@@ -137,7 +137,9 @@ export function NodePage() {
       KickerIcon: Broadcast,
       spin: false,
       title: 'Paused. This Mac is idle.',
-      body: `${node.modelName} is still in memory. Turn sharing back on and it picks up within seconds.`,
+      body: node.modelName
+        ? `${node.modelName} is still in memory. Turn sharing back on and it picks up within seconds.`
+        : '',
       ringPct: 0,
       ringLabel: '0%',
       ringCaption: 'capacity used',
@@ -165,7 +167,8 @@ export function NodePage() {
         <CapacityRing pct={hero.ringPct} label={hero.ringLabel} caption={hero.ringCaption} color={hero.ringColor} />
       </div>
 
-      {gettingReady ? <ReadyChecklist node={node} /> : (
+      {/* Connecting means nothing is assigned yet: no model, so no checklist for one. */}
+      {gettingReady ? (node.phase !== 'connecting' && <ReadyChecklist node={node} />) : (
         <>
           <StatStrip stats={dayStats} />
           <ThroughputChart stats={chartStats} range={range} onRangeChange={setRange} />
