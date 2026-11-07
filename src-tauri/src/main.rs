@@ -703,6 +703,25 @@ async fn get_model_cache_info(state: tauri::State<'_, AppState>) -> Result<Model
     })
 }
 
+#[derive(serde::Serialize)]
+struct SystemMemory {
+    total_memory_mb: u32,
+    available_memory_mb: u32,
+    accelerator_memory_mb: Option<u32>,
+}
+
+/// The same memory figures this node reports in its DeviceIdentity - the app
+/// uses them only to suggest models that fit when an admin adds one.
+#[tauri::command]
+fn get_system_memory() -> SystemMemory {
+    let m = ai4all_tauri::memory::probe();
+    SystemMemory {
+        total_memory_mb: m.total_memory_mb,
+        available_memory_mb: m.available_memory_mb,
+        accelerator_memory_mb: m.accelerator_memory_mb,
+    }
+}
+
 /// Open the model cache folder in the system file manager. The path comes
 /// from the app's own state, never from the webview, so shell.open's scope can
 /// stay limited to web URLs.
@@ -1249,6 +1268,7 @@ fn main() {
             generate_text,
             is_model_loaded,
             get_model_cache_info,
+            get_system_memory,
             reveal_model_cache,
             load_model_auto,
             get_all_status,

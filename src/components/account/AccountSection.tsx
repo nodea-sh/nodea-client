@@ -45,7 +45,7 @@ export function AccountSection() {
   const blocked = me.organization !== null && !me.can_leave
   const leaveText = me.leave_deletes_organization
     ? 'You are the last member, so leaving deletes the organization, its API keys and its devices.'
-    : 'This Mac stops sharing compute with it.' +
+    : 'This device stops sharing compute with it.' +
       (me.leave_disables_api_keys > 0
         ? ` ${me.leave_disables_api_keys === 1 ? 'The API key' : `The ${me.leave_disables_api_keys} API keys`} you created stop working.`
         : '')
@@ -61,12 +61,12 @@ export function AccountSection() {
              control={<GhostButton onClick={openAccountInBrowser}>Manage account ↗</GhostButton>} />
         {me.organization && (
           <Row title="Leave organization"
-               description={blocked ? "You're the only admin. Promote another member in the web console first." : leaveText}
+               description={blocked ? "You're the only admin. Promote another member in Team first." : leaveText}
                control={<GhostButton onClick={() => setDialog('leave')} disabled={blocked}>Leave</GhostButton>} />
         )}
         <Row last title="Delete account"
              description={blocked
-               ? "You're the only admin. Promote another member in the web console first."
+               ? "You're the only admin. Promote another member in Team first."
                : 'Erases your name and email and removes your devices. This cannot be undone.'}
              control={<GhostButton onClick={() => setDialog('delete')} disabled={blocked || !me.email}>Delete</GhostButton>} />
       </div>
@@ -98,7 +98,7 @@ export function AccountSection() {
                 ? `You are the last member of ${me.organization.name}, so it is deleted too. `
                 : `You leave ${me.organization.name}, and API keys you created there stop working. `
               : '') +
-            'Downloaded models stay on this Mac.'
+            'Downloaded models stay on this device.'
           }
           expected={me.email}
           inputLabel={`Type ${me.email} to confirm`}

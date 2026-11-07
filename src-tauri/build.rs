@@ -22,6 +22,29 @@ fn main() {
         eprintln!("Loaded environment from: {}", env_file);
     }
 
+    // Baked in below, so a changed value has to rebuild, not just APP_ENV.
+    for var in [
+        "GRPC_SERVER",
+        "SUPABASE_URL",
+        "SUPABASE_ANON_KEY",
+        "VITE_API_BASE_URL",
+    ] {
+        println!("cargo:rerun-if-env-changed={}", var);
+    }
+
+    // The app only ever talks to the backend through its public names
+    // (api.getnodea.com, grpc.getnodea.com), never the hosting provider's.
+    for var in ["GRPC_SERVER", "VITE_API_BASE_URL"] {
+        if let Ok(url) = std::env::var(var) {
+            if url.contains("fly.dev") {
+                panic!(
+                    "{} is {}: use the public getnodea.com hostname instead",
+                    var, url
+                );
+            }
+        }
+    }
+
     // Pass environment variables to compile-time
     if let Ok(grpc_server) = std::env::var("GRPC_SERVER") {
         eprintln!("Setting GRPC_SERVER to: {}", grpc_server);

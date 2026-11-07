@@ -80,8 +80,10 @@ export function OnboardingPage() {
       // Clear the "just signed up" flag
       sessionStorage.removeItem('just_signed_up')
 
-      toast.success('Organization created successfully!')
-      navigate('/node')
+      toast.success('Organization created')
+      // The creator is the organization's admin, and a new organization has
+      // no models yet: pick one next, so this Mac has something to serve.
+      navigate('/onboarding/model')
     } catch (error: any) {
       console.error('Failed to create organization:', error)
       toast.error(error.message || 'Failed to create organization')
@@ -98,7 +100,7 @@ export function OnboardingPage() {
             <>
               <h1 className="text-2xl font-bold mb-2">You're no longer in {leftOrganizationName}</h1>
               <p className="text-muted-foreground">
-                This Mac stopped sharing compute. Create an organization below, or open an
+                This device stopped sharing compute. Create an organization below, or open an
                 invitation link to join one.
               </p>
             </>

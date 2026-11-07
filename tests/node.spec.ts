@@ -16,7 +16,7 @@ test.describe('Node phases (demo mode)', () => {
     await gotoPhase(page, 'downloading')
 
     await expect(page.getByText('Downloading', { exact: true })).toBeVisible()
-    await expect(page.locator('h1')).toHaveText('Fetching the model for this Mac.')
+    await expect(page.locator('h1')).toHaveText('Fetching the model for this device.')
     await expect(page.getByText('62%').first()).toBeVisible()
   })
 
@@ -50,7 +50,7 @@ test.describe('Node phases (demo mode)', () => {
 
     await expect(page.getByText('Not sharing', { exact: true }).first()).toBeVisible()
     await expect(page.locator('h1')).toHaveText('The server refused this account.')
-    await expect(page.getByText('Account is inactive. This Mac stopped sharing compute.')).toBeVisible()
+    await expect(page.getByText('Account is inactive. This device stopped sharing compute.')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Retry now' })).toHaveCount(0)
   })
 
@@ -66,30 +66,30 @@ test.describe('Node phases (demo mode)', () => {
 
     // "Sharing" appears twice while ready (widget title + toggle row label).
     await expect(page.getByText('Sharing', { exact: true }).first()).toBeVisible()
-    await expect(page.locator('h1')).toHaveText('This Mac is serving the network.')
+    await expect(page.locator('h1')).toHaveText('This device is serving the network.')
   })
 
   test('paused: widget and hero agree', async ({ page }) => {
     await gotoPhase(page, 'paused')
 
     await expect(page.getByText('Paused', { exact: true })).toBeVisible()
-    await expect(page.locator('h1')).toHaveText('Paused. This Mac is idle.')
+    await expect(page.locator('h1')).toHaveText('Paused. This device is idle.')
   })
 
   test('sharing toggle flips widget, hero and ring together', async ({ page }) => {
     await gotoPhase(page, 'serving')
 
-    await expect(page.locator('h1')).toHaveText('This Mac is serving the network.')
+    await expect(page.locator('h1')).toHaveText('This device is serving the network.')
 
     // The whole status widget is the sharing toggle when the node is ready.
     await page.locator('button[aria-pressed]').click()
 
     await expect(page.getByText('Paused', { exact: true })).toBeVisible()
-    await expect(page.locator('h1')).toHaveText('Paused. This Mac is idle.')
+    await expect(page.locator('h1')).toHaveText('Paused. This device is idle.')
 
     // Toggling back should restore the serving copy.
     await page.locator('button[aria-pressed]').click()
-    await expect(page.locator('h1')).toHaveText('This Mac is serving the network.')
+    await expect(page.locator('h1')).toHaveText('This device is serving the network.')
   })
 })
 

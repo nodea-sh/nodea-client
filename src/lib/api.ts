@@ -4,12 +4,61 @@ import { invoke } from '@tauri-apps/api/core'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/site'
 
+// The OpenAI-compatible API, a sibling of /site (same as the web console).
+export const OPENAI_API_BASE_URL = `${API_BASE_URL.replace(/\/site\/?$/, '')}/openai/v1`
+
+// GET /v1/api-keys masks `value` (abc...wxyz); POST returns it in full, once.
 interface ApiKeyResponse {
   id: number
-  user_id: string
   name: string
   value: string
+  created_by: string | null
+  // The creator left the organization, so the key no longer authenticates.
+  created_by_former_member: boolean
+  disabled: boolean
   created_at: string
+}
+
+// A model the organization has added (GET /v1/models).
+interface OrgModel {
+  ref: string
+  required_memory_mb: number
+  enabled: boolean
+  device_count: number
+  tokens_total: number
+  pending_device_count: number
+}
+
+// A model the organization can add (GET /v1/model-catalog).
+interface CatalogModel {
+  ref: string
+  hf_repo: string
+  gguf_filename: string
+  publisher: string
+  downloads: number
+  likes: number
+  pipeline_tag: string | null
+  last_modified: string | null
+  in_organization: boolean
+  quantization: string
+}
+
+interface ModelCatalog {
+  items: CatalogModel[]
+  fetched_at: string | null
+  // Served from cache because Hugging Face could not be reached.
+  stale: boolean
+}
+
+// The signed-in user's setup steps (GET /v1/onboarding/status).
+interface OnboardingStatus {
+  app_installed: boolean
+  api_key_created: boolean
+  first_request_made: boolean
+  // Only admins create keys; standard members skip that step.
+  api_key_step_applicable: boolean
+  dismissed: boolean
+  completed: boolean
 }
 
 interface DeviceResponse {
@@ -52,6 +101,10 @@ interface Organization {
   slug: string
   member_count?: number
   created_at: string
+  // The caller's role, read fresh with the organization (GET /v1/organization).
+  current_user_role?: 'admin' | 'standard'
+  plan?: { key: string; name: string; max_devices: number }
+  connected_device_count?: number
 }
 
 interface OrganizationMember {
@@ -59,6 +112,8 @@ interface OrganizationMember {
   uuid: string
   email: string
   name: string | null
+  // What GET /v1/users actually sends for the person's name.
+  full_name?: string | null
   role: 'admin' | 'standard'
   is_active: boolean
   created_at: string
@@ -207,7 +262,8 @@ class ApiClient {
           this.logApiCall(method, endpoint, statusCode, requestBody, responseBody, duration)
         }
 
-        return JSON.parse(responseText)
+        // DELETE /v1/models/{ref} answers 204 with no body.
+        return (responseText ? JSON.parse(responseText) : undefined) as T
       }
     } catch (e) {
       statusCode = 0
@@ -262,6 +318,52 @@ class ApiClient {
   async deleteApiKey(id: number): Promise<void> {
     return this.fetch<void>(`/v1/api-keys/${id}`, {
       method: 'DELETE',
+    })
+  }
+
+  // Models
+  async getOrgModels(): Promise<OrgModel[]> {
+    return this.fetch<OrgModel[]>('/v1/models')
+  }
+
+  async getModelCatalog(): Promise<ModelCatalog> {
+    return this.fetch<ModelCatalog>('/v1/model-catalog')
+  }
+
+  async addModel(ref: string): Promise<OrgModel> {
+    return this.fetch<OrgModel>('/v1/models', {
+      method: 'POST',
+      body: JSON.stringify({ ref }),
+    })
+  }
+
+  async setModelEnabled(ref: string, enabled: boolean): Promise<OrgModel> {
+    return this.fetch<OrgModel>(`/v1/models/${encodeURIComponent(ref)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ enabled }),
+    })
+  }
+
+  async removeModel(ref: string): Promise<void> {
+    return this.fetch<void>(`/v1/models/${encodeURIComponent(ref)}`, {
+      method: 'DELETE',
+    })
+  }
+
+  // Models some device is serving right now - the ones a request can use.
+  async getAvailableModels(): Promise<string[]> {
+    return this.fetch<string[]>('/v1/available-models')
+  }
+
+  // Setup checklist
+  async getOnboardingStatus(): Promise<OnboardingStatus> {
+    return this.fetch<OnboardingStatus>('/v1/onboarding/status')
+  }
+
+  async updateOnboarding(data: { dismissed?: boolean; request_confirmed?: boolean }): Promise<OnboardingStatus> {
+    return this.fetch<OnboardingStatus>('/v1/onboarding', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
     })
   }
 
@@ -493,6 +595,10 @@ export { apiClient, ApiError }
 export type {
   Me,
   ApiKeyResponse,
+  OrgModel,
+  CatalogModel,
+  ModelCatalog,
+  OnboardingStatus,
   DeviceResponse,
   DeviceDetailResponse,
   TokenStatsResponse,
