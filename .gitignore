@@ -1,6 +1,12 @@
 # Tauri
 src-tauri/target/
+
+# Test GGUFs fetched by `make fetch-test-models`
+.cache/
 src-tauri/WixTools/
+
+# Private working notes; never committed.
+/notes/
 
 # Environment files (keep .env.example and .env.test, which hold only the
 # public Supabase CLI demo keys). .env.local is also covered by *.local below.
@@ -40,3 +46,6 @@ playwright-report/
 
 # Python bytecode from the scripts/ tests
 __pycache__/
+
+# Tauri v2 regenerates the capability schemas on every build.
+/src-tauri/gen/schemas

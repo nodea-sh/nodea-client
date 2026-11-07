@@ -7,7 +7,7 @@ welcome.
 
 The app needs the Nodea backend to do anything useful, and that backend is
 closed source. You can still build the app, run the UI in demo mode, and run
-both test suites without it. See the Quick Start in [README.md](README.md) and
+both test suites without it. See the Quick Start in [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) and
 [tests/README.md](tests/README.md).
 
 For anything bigger than a small fix, please open an issue first so we can
@@ -27,7 +27,7 @@ agree on the approach.
    ```
 
    If you changed dependencies, regenerate the licence notices with
-   `make licenses` (see the Third-party licences section of the README).
+   `make licenses` (see the Third-party licences section of docs/DEVELOPMENT.md).
 4. Open a pull request describing what changed and why.
 
 Security issues go through [SECURITY.md](SECURITY.md), not a pull request.

@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { invoke } from '@tauri-apps/api/tauri'
+import { invoke } from '@tauri-apps/api/core'
 import { toast } from 'sonner'
 import { Send, Bot, User, Loader2 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'

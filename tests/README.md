@@ -42,6 +42,7 @@ Playwright starts the dev server itself (`webServer` in
 | `fleet.spec.ts` | Fleet page listing and device detail |
 | `login.spec.ts` | Login form rendering, the failure path, a successful sign-in redirect, the signup link and the Google button |
 | `settings.spec.ts` | Settings rows, the absence of controls with no backend support, app version and sign out |
+| `updates.spec.ts` | The sidebar's "Update ready · Restart" item (pinned with `?update=`), dismissing it, the restart message, "Check for updates" and the once-only "Updated to" toast |
 
 ## What this does not cover
 

@@ -15,7 +15,36 @@ permissions:
   contents: read
 
 jobs:
+  # The build signs the updater bundles at the very end, so a key and password
+  # that do not match used to fail after 20+ minutes on every platform, and
+  # after the version job had already taken a number. This fails in seconds,
+  # before any tag is pushed.
+  preflight:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: release
+      deployment: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Check the updater signing key
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          # The CLI version the build uses, without a full npm ci.
+          CLI=$(node -p "require('./package-lock.json').packages['node_modules/@tauri-apps/cli'].version")
+          python3 scripts/check_updater_key.py --config src-tauri/tauri.conf.json -- \
+            npx --yes "@tauri-apps/cli@$CLI" signer sign
+
   version:
+    needs: preflight
     # Releases are cut from main only, so a tag never points at an unreviewed
     # branch.
     if: github.ref == 'refs/heads/main'
@@ -73,16 +102,25 @@ jobs:
             container: ubuntu:22.04
             bundle_subpath: appimage/*.AppImage
             dest_filename: Nodea-linux.AppImage
+            # What the in-app updater downloads. On Linux and Windows it is
+            # the installer itself; macOS updates from a tarball of the .app.
+            # Names must match scripts/updater_manifest.py.
+            updater_subpath: appimage/*.AppImage
+            updater_filename: Nodea-linux.AppImage
           - platform: mac
             runner: macos-latest
             container: ''
             bundle_subpath: dmg/*.dmg
             dest_filename: Nodea-mac.dmg
+            updater_subpath: macos/*.app.tar.gz
+            updater_filename: Nodea-mac.app.tar.gz
           - platform: windows
             runner: windows-latest
             container: ''
             bundle_subpath: msi/*.msi
             dest_filename: Nodea-windows.msi
+            updater_subpath: msi/*.msi
+            updater_filename: Nodea-windows.msi
     runs-on: ${{ matrix.runner }}
     # An empty string means "no container", so only the Linux entry gets one.
     container: ${{ matrix.container }}
@@ -93,7 +131,8 @@ jobs:
         if: matrix.platform == 'linux'
         run: |
           apt-get update
-          apt-get install -y curl wget file git ca-certificates build-essential pkg-config
+          apt-get install -y curl wget file git ca-certificates build-essential pkg-config \
+            cmake clang libclang-dev gnupg
 
       - name: Checkout code
         uses: actions/checkout@v4
@@ -121,7 +160,7 @@ jobs:
       - name: Install Linux dependencies for Tauri
         if: matrix.platform == 'linux'
         run: |
-          apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev libappindicator3-dev \
+          apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev libxdo-dev \
             librsvg2-dev patchelf libssl-dev desktop-file-utils
           # No protobuf-compiler: src-tauri/build.rs uses protoc-bin-vendored.
 
@@ -132,6 +171,50 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
+
+      # llama.cpp is built from source. Windows and Linux ship its Vulkan
+      # backend, which runs on NVIDIA, AMD and Intel GPUs through the driver's
+      # own Vulkan loader, so nothing GPU-specific is bundled; without a usable
+      # GPU it falls back to the CPU. macOS builds Metal (no SDK needed).
+      # LunarG's jammy packages provide glslc and SPIRV-Headers, which
+      # 22.04's own packages are too old for.
+      - name: Install the Vulkan SDK (Linux)
+        if: matrix.platform == 'linux'
+        run: |
+          set -eu
+          wget -qO- https://packages.lunarg.com/lunarg-signing-key-pub.asc \
+            | gpg --dearmor -o /usr/share/keyrings/lunarg.gpg
+          echo "deb [signed-by=/usr/share/keyrings/lunarg.gpg] https://packages.lunarg.com/vulkan jammy main" \
+            > /etc/apt/sources.list.d/lunarg-vulkan-jammy.list
+          apt-get update
+          apt-get install -y vulkan-sdk
+
+      - name: Install the Vulkan SDK (Windows)
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        env:
+          VULKAN_VERSION: 1.4.309.0
+        run: |
+          curl.exe -sSL -o "$env:RUNNER_TEMP\VulkanSDK.exe" "https://sdk.lunarg.com/sdk/download/$env:VULKAN_VERSION/windows/VulkanSDK-$env:VULKAN_VERSION-Installer.exe"
+          & "$env:RUNNER_TEMP\VulkanSDK.exe" --accept-licenses --default-answer --confirm-command install
+          Add-Content $env:GITHUB_ENV "VULKAN_SDK=C:\VulkanSDK\$env:VULKAN_VERSION"
+          Add-Content $env:GITHUB_PATH "C:\VulkanSDK\$env:VULKAN_VERSION\Bin"
+
+      # llama.cpp's Vulkan CMake needs find_package(SPIRV-Headers CONFIG),
+      # which this SDK's installer does not provide. Header-only, from the
+      # Khronos tag matching the SDK, found through CMAKE_PREFIX_PATH.
+      - name: Install SPIRV-Headers (Windows)
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        env:
+          VULKAN_VERSION: 1.4.309.0
+        run: |
+          $src = "$env:RUNNER_TEMP\SPIRV-Headers"
+          $prefix = "$env:RUNNER_TEMP\spirv-headers-install"
+          git clone --depth 1 --branch "vulkan-sdk-$env:VULKAN_VERSION" https://github.com/KhronosGroup/SPIRV-Headers $src
+          cmake -S $src -B "$src\build" -DCMAKE_INSTALL_PREFIX="$prefix" -DSPIRV_HEADERS_ENABLE_TESTS=OFF -DSPIRV_HEADERS_ENABLE_INSTALL=ON
+          cmake --install "$src\build"
+          Add-Content $env:GITHUB_ENV "CMAKE_PREFIX_PATH=$prefix"
 
       # Every runner is GitHub-hosted and has no persistent disk, so unlike the
       # monorepo this caches on all three platforms.
@@ -287,8 +370,18 @@ jobs:
           APPLE_SIGNING_IDENTITY_IN: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           APPLE_API_KEY_IN: ${{ secrets.APPLE_API_KEY }}
           APPLE_API_ISSUER_IN: ${{ secrets.APPLE_API_ISSUER }}
+          # Signs the updater bundles (bundle.createUpdaterArtifacts). Unlike
+          # the Apple secrets this one is required: a release without .sig
+          # files could never be installed by the in-app updater.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           set -euo pipefail
+
+          if [ -z "${TAURI_SIGNING_PRIVATE_KEY:-}" ]; then
+            echo "::error::TAURI_SIGNING_PRIVATE_KEY is unset in the release environment - the updater bundles cannot be signed."
+            exit 1
+          fi
 
           if [ "${{ matrix.platform }}" = "mac" ] && [ -n "${APPLE_CERTIFICATE_IN:-}" ]; then
             echo "Signing with ${APPLE_SIGNING_IDENTITY_IN}"
@@ -318,8 +411,14 @@ jobs:
             # --verbose makes the bundler print the codesign error it would
             # otherwise collapse into "failed to sign app".
             npm run tauri build -- --verbose
+          elif [ "${{ matrix.platform }}" = "windows" ]; then
+            npm run tauri build -- --features vulkan
           else
-            npm run tauri build
+            # libvulkan.so.1 is the system's loader, which finds the user's
+            # GPU driver; a bundled copy would not. linuxdeploy must still be
+            # able to resolve it, so it is excluded rather than missing.
+            export LINUXDEPLOY_EXCLUDED_LIBRARIES='libvulkan.so*'
+            npm run tauri build -- --features vulkan
           fi
 
       # tauri-bundler notarises and staples the .app, then builds the DMG from
@@ -375,6 +474,22 @@ jobs:
           fi
           echo "Signed, notarised and stapled: $DMG"
 
+          # The in-app updater installs the .app inside this tarball, not the
+          # one checked above. If the bundler packed it before notarisation,
+          # every updated Mac would refuse to open the app.
+          TARBALL=$(scripts/select_bundle.sh 'macos/*.app.tar.gz' src-tauri/target/release/bundle)
+          UNPACKED="$RUNNER_TEMP/updater-app"
+          rm -rf "$UNPACKED" && mkdir -p "$UNPACKED"
+          tar -xzf "$TARBALL" -C "$UNPACKED"
+          UPDATER_APP=$(scripts/select_bundle.sh '*.app' "$UNPACKED")
+          if ! codesign --verify --deep --strict "$UPDATER_APP" 2>&1 \
+             || ! spctl --assess --type execute --context context:primary-signature "$UPDATER_APP" 2>&1 \
+             || ! xcrun stapler validate "$UPDATER_APP" 2>&1; then
+            echo "::error::The .app in $(basename "$TARBALL") is not signed, notarised and stapled - updated Macs would refuse to open it"
+            exit 1
+          fi
+          echo "Signed, notarised and stapled: $(basename "$TARBALL")"
+
       - name: Remove the signing keychain
         if: always() && matrix.platform == 'mac'
         shell: bash
@@ -386,6 +501,25 @@ jobs:
           fi
           rm -f "${NODEA_NOTARY_KEY:-}"
           echo "signing keychain and notary key removed"
+
+      # The one way the Linux Vulkan bundle breaks only on a user's machine:
+      # a bundled Vulkan loader, which cannot find the user's GPU driver, so
+      # everything silently runs on the CPU.
+      - name: Check the AppImage leaves the Vulkan loader to the system
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          APPDIR=$(find src-tauri/target/release/bundle/appimage -maxdepth 1 -type d -name '*.AppDir' | head -1)
+          if [ -z "$APPDIR" ]; then
+            echo "::error::No AppDir under src-tauri/target/release/bundle/appimage"
+            exit 1
+          fi
+          if [ -n "$(find "$APPDIR" -name 'libvulkan.so*' -print -quit)" ]; then
+            echo "::error::libvulkan is bundled - it must come from the user's system"
+            exit 1
+          fi
+          echo "Vulkan loader left to the system"
 
       # Located in bash because select_bundle.sh is shell, and `bash` inside
       # pwsh on a Windows runner can resolve to WSL rather than Git Bash.
@@ -415,14 +549,22 @@ jobs:
         run: |
           set -euo pipefail
           FILE=$(scripts/select_bundle.sh '${{ matrix.bundle_subpath }}' src-tauri/target/release/bundle)
-          mkdir -p dist
-          cp "$FILE" "dist/${{ matrix.dest_filename }}"
+          mkdir -p bundles
+          cp "$FILE" "bundles/${{ matrix.dest_filename }}"
           echo "Staged $FILE ($(du -h "$FILE" | cut -f1)) as ${{ matrix.dest_filename }}"
+
+          # On Linux and Windows this is the installer again, so the copy is
+          # a no-op; on macOS it adds the .app tarball. Either way the .sig
+          # sits beside it under the same fixed name.
+          UPDATER=$(scripts/select_bundle.sh '${{ matrix.updater_subpath }}' src-tauri/target/release/bundle)
+          cp "$UPDATER" "bundles/${{ matrix.updater_filename }}"
+          cp "$UPDATER.sig" "bundles/${{ matrix.updater_filename }}.sig"
+          echo "Staged $UPDATER and its signature as ${{ matrix.updater_filename }}"
 
       - uses: actions/upload-artifact@v4
         with:
           name: bundle-${{ matrix.platform }}
-          path: dist/${{ matrix.dest_filename }}
+          path: bundles/
           if-no-files-found: error
           retention-days: 7
 
@@ -441,16 +583,32 @@ jobs:
     env:
       VERSION: ${{ needs.version.outputs.version }}
     steps:
+      # For scripts/updater_manifest.py.
+      - uses: actions/checkout@v4
+        with:
+          ref: v${{ needs.version.outputs.version }}
+
       - uses: actions/download-artifact@v4
         with:
           pattern: bundle-*
-          path: dist
+          path: bundles
           merge-multiple: true
 
-      - name: Write checksums
-        working-directory: dist
+      # The in-app updater reads this from releases/latest/download/, which
+      # ignores drafts, so it goes live only when the release is published.
+      # Fails if any platform's bundle or signature is missing.
+      - name: Write the updater manifest
         run: |
-          sha256sum Nodea-* > SHA256SUMS
+          python3 scripts/updater_manifest.py \
+            --version "$VERSION" \
+            --repo "$GITHUB_REPOSITORY" \
+            --assets bundles > bundles/latest.json
+          cat bundles/latest.json
+
+      - name: Write checksums
+        working-directory: bundles
+        run: |
+          sha256sum Nodea-* latest.json > SHA256SUMS
           cat SHA256SUMS
 
       # Lets anyone check with `gh attestation verify` that a download was
@@ -460,13 +618,15 @@ jobs:
       - uses: actions/attest-build-provenance@v2
         continue-on-error: ${{ github.event.repository.private }}
         with:
-          subject-path: dist/Nodea-*
+          subject-path: |
+            bundles/Nodea-*
+            bundles/latest.json
 
       - name: Create the draft release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "v$VERSION" dist/* \
+          gh release create "v$VERSION" bundles/* \
             --repo "$GITHUB_REPOSITORY" \
             --verify-tag \
             --draft \

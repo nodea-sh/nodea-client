@@ -1,49 +1,65 @@
 {
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Nodea",
+  "mainBinaryName": "Nodea",
+  "version": "0.1.0",
+  "identifier": "com.getnodea.app",
   "build": {
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build",
-    "devPath": "http://localhost:1420",
-    "distDir": "../dist",
-    "withGlobalTauri": false
+    "devUrl": "http://localhost:1420",
+    "frontendDist": "../dist"
   },
-  "package": {
-    "productName": "Nodea",
-    "version": "0.1.0"
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "createUpdaterArtifacts": true,
+    "resources": ["../LICENSE", "../NOTICE", "../THIRD_PARTY_LICENSES.md"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "macOS": {
+      "minimumSystemVersion": "10.15"
+    },
+    "windows": {
+      "wix": {
+        "upgradeCode": "c00cab28-27d5-5e3e-8e36-e12baad322b3"
+      }
+    }
   },
-  "tauri": {
-    "allowlist": {
-      "all": false,
-      "shell": {
-        "all": false,
-        "open": "^https://app\\.getnodea\\.com/"
-      },
-      "window": {
-        "all": false,
-        "startDragging": true
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["nodea"]
       }
     },
-    "bundle": {
-      "active": true,
-      "targets": "all",
-      "identifier": "com.getnodea.app",
-      "resources": ["../LICENSE", "../NOTICE", "../THIRD_PARTY_LICENSES.md"],
-      "icon": [
-        "icons/32x32.png",
-        "icons/128x128.png",
-        "icons/128x128@2x.png",
-        "icons/icon.icns",
-        "icons/icon.ico"
-      ]
-    },
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEUzQjBFNkIwNDBGQ0Q5MUUKUldRZTJmeEFzT2F3NDZsTWlkVXJBUVhKRHRRclNKS3pRZExYMEQvOU9JakwwNUhLSXdLSmxyZXUK",
+      "endpoints": [
+        "https://github.com/nodea-sh/nodea-client/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  },
+  "app": {
+    "withGlobalTauri": false,
     "security": {
       "csp": null
     },
-    "systemTray": {
+    "trayIcon": {
+      "id": "main",
       "iconPath": "icons/tray-icon-template.png",
       "iconAsTemplate": true
     },
     "windows": [
       {
+        "label": "main",
         "fullscreen": false,
         "resizable": true,
         "title": "",
@@ -52,7 +68,8 @@
         "url": "?demo=false",
         "decorations": true,
         "titleBarStyle": "Overlay",
-        "transparent": false
+        "transparent": false,
+        "useHttpsScheme": true
       }
     ]
   }

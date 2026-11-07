@@ -1,0 +1,2 @@
+{"messages":[{"role":"user","content":"Say hello."}],"max_tokens":8,"temperature":0,
+ "logprobs":true,"top_logprobs":3}

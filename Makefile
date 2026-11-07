@@ -3,7 +3,8 @@
 # Run 'make help' to see all available targets
 
 .PHONY: help install install-rust install-node test test-rust test-integration test-all \
-        build build-frontend dev clean format check check-rust
+        build build-frontend dev clean format check check-rust \
+        fetch-test-models test-inference infer
 
 # Default target
 .DEFAULT_GOAL := help
@@ -34,8 +35,18 @@ test: test-rust ## Run all tests (alias for test-rust)
 
 test-rust: ## Run Rust unit and integration tests
 	@echo "🧪 Running Rust tests..."
-	cd src-tauri && cargo test --all-targets
+	cd src-tauri && cargo test --workspace --all-targets
 	@echo "✅ Rust tests passed"
+
+fetch-test-models: ## Download and verify the pinned test GGUFs (ONLY=smoke,tools to limit)
+	cd src-tauri && cargo run -p nodea-inference --bin fetch-test-models -- $(if $(ONLY),--only $(ONLY))
+
+test-inference: ## Run the inference crate's tests, failing if a test model is missing
+	cd src-tauri && NODEA_REQUIRE_TEST_MODELS=1 cargo test -p nodea-inference
+
+infer: ## Run one request through the engine: make infer MODEL=tools REQ=crates/nodea-inference/examples/requests/tools-weather.json
+	cd src-tauri && cargo run -p nodea-inference --bin nodea-infer -- --model $(or $(MODEL),smoke) \
+		$(if $(REQ),--request $(REQ),--prompt "Hello") --format pretty $(ARGS)
 
 test-unit: ## Run only Rust unit tests
 	@echo "🧪 Running unit tests..."
@@ -74,7 +85,8 @@ dev: ## Run the app in development mode
 
 build: ## Build the app for production
 	@echo "🔨 Building Tauri app..."
-	npm run tauri build
+	@# Updater bundles need the release signing key, which only CI has.
+	npm run tauri build -- --config '{"bundle":{"createUpdaterArtifacts":false}}'
 	@echo "✅ Build complete"
 
 build-rust: ## Build only the Rust backend
@@ -104,17 +116,17 @@ check-rust: ## Check Rust code without building
 
 clippy: ## Run Clippy linter on Rust code
 	@echo "📎 Running Clippy..."
-	cd src-tauri && cargo clippy -- -D warnings
+	cd src-tauri && cargo clippy --workspace -- -D warnings
 	@echo "✅ Clippy passed"
 
 format: ## Format Rust code
 	@echo "💅 Formatting Rust code..."
-	cd src-tauri && cargo fmt
+	cd src-tauri && cargo fmt --all
 	@echo "✅ Code formatted"
 
 format-check: ## Check if Rust code is formatted
 	@echo "🔍 Checking Rust formatting..."
-	cd src-tauri && cargo fmt -- --check
+	cd src-tauri && cargo fmt --all -- --check
 	@echo "✅ Formatting check passed"
 
 licenses: ## Regenerate THIRD_PARTY_LICENSES.md (needs cargo-about and npm ci)

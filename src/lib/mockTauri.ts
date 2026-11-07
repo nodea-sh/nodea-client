@@ -177,6 +177,20 @@ export const mockInvoke = async <T>(command: string, args?: any): Promise<T> => 
       console.log('[Mock Tauri] reveal_model_cache')
       return undefined as unknown as T
 
+    case 'get_update_state':
+      return getForcedUpdate() as unknown as T
+
+    case 'check_for_updates': {
+      const update = getForcedUpdate()
+      return (update.state === 'ready'
+        ? { outcome: 'ready', version: update.version }
+        : { outcome: 'up_to_date' }) as unknown as T
+    }
+
+    case 'restart_to_update':
+      console.log('[Mock Tauri] restart_to_update')
+      return undefined as unknown as T
+
     case 'get_model_cache_info':
       return {
         path: '~/Library/Application Support/Nodea/models',
@@ -220,6 +234,25 @@ const FORCED_MODEL_NAME = 'Llama 3.1 8B Instruct'
 
 const getForcedPhase = (): string | null => {
   return new URLSearchParams(window.location.search).get('phase')
+}
+
+/**
+ * The updater's state via ?update=<downloading|ready|installing> (with
+ * ?demo=true); idle otherwise. Used by tests/updates.spec.ts.
+ */
+const MOCK_UPDATE_VERSION = '26.11.3'
+
+const getForcedUpdate = () => {
+  switch (new URLSearchParams(window.location.search).get('update')) {
+    case 'downloading':
+      return { state: 'downloading', version: MOCK_UPDATE_VERSION, progress: 40 }
+    case 'ready':
+      return { state: 'ready', version: MOCK_UPDATE_VERSION }
+    case 'installing':
+      return { state: 'installing', version: MOCK_UPDATE_VERSION, finishing_requests: true }
+    default:
+      return { state: 'idle' }
+  }
 }
 
 const applyForcedPhase = (phase: string) => {
