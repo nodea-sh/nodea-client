@@ -379,6 +379,14 @@ class ApiClient {
     return this.fetch<DeviceDetailResponse>(`/v1/devices/${deviceId}`)
   }
 
+  // Only the user who enrolled the device can rename it; anything else 404s.
+  async updateDevice(deviceId: string, data: { name: string }): Promise<DeviceDetailResponse> {
+    return this.fetch<DeviceDetailResponse>(`/v1/devices/${deviceId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    })
+  }
+
   // Token Stats
   async getConsumedTokens(range: TokenStatsRange = '1h'): Promise<TokenStatsResponse[]> {
     return this.fetch<TokenStatsResponse[]>(`/v1/token-stats?range=${range}`)

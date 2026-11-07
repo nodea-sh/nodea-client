@@ -3,6 +3,7 @@ import { useOutletContext } from 'react-router-dom'
 import { invoke } from '@tauri-apps/api/core'
 import { useAuth } from '@/contexts/AuthContext'
 import { AccountSection } from '@/components/account/AccountSection'
+import { apiClient } from '@/lib/api'
 import { isDemoMode, mockInvoke } from '@/lib/mockTauri'
 import { isTauriApp } from '@/lib/platform'
 import type { NodeState } from '@/hooks/useNodePhase'
@@ -45,7 +46,8 @@ export function SettingsPage() {
       </h1>
 
       <div className="flex flex-col gap-0.5">
-        <Row first title="Share compute" description="Whenever this device is awake and plugged in."
+        <NodeNameRow />
+        <Row title="Share compute" description="Whenever this device is awake and plugged in."
              control={<Switch on={node.sharing} onChange={node.setSharing} />} />
         <Row last title="Model cache"
              description={cache ? `${formatGB(cache.size_bytes)} in ${cache.path}` : 'Calculating…'}
@@ -62,10 +64,116 @@ export function SettingsPage() {
   )
 }
 
+const MAX_NODE_NAME_LENGTH = 64
+
+type NodeName =
+  | { state: 'loading' }
+  // The backend creates a device's record on its first connection, so a
+  // device that never connected has no name to change yet.
+  | { state: 'unknown' }
+  | { state: 'failed' }
+  | { state: 'ready'; deviceId: string; name: string }
+
+const NODE_NAME_STATUS = {
+  loading: 'Loading…',
+  unknown: 'Connect once to name this node.',
+  failed: "Couldn't load this node's name.",
+} as const
+
+function NodeNameRow() {
+  const [node, setNode] = useState<NodeName>({ state: 'loading' })
+  // null while not editing.
+  const [draft, setDraft] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const demo = isDemoMode()
+    ;(demo ? mockInvoke : invoke)<string>('get_device_id')
+      .then(async (deviceId) => {
+        const device = await apiClient.getDevice(deviceId)
+        setNode({ state: 'ready', deviceId, name: device.name })
+      })
+      .catch((err) => {
+        if ((err as { status?: number }).status === 404) {
+          setNode({ state: 'unknown' })
+        } else {
+          console.error(err)
+          setNode({ state: 'failed' })
+        }
+      })
+  }, [])
+
+  const startEditing = () => {
+    if (node.state !== 'ready') return
+    setDraft(node.name)
+    setError(null)
+  }
+
+  const cancel = () => {
+    setDraft(null)
+    setError(null)
+  }
+
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (node.state !== 'ready' || draft === null) return
+    const name = draft.trim()
+    if (!name) {
+      setError('Enter a name.')
+      return
+    }
+    if (name === node.name) {
+      cancel()
+      return
+    }
+    setBusy(true)
+    setError(null)
+    try {
+      const device = await apiClient.updateDevice(node.deviceId, { name })
+      setNode({ ...node, name: device.name })
+      setDraft(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't rename this node.")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (node.state !== 'ready') {
+    return <Row first title="Node name" description={NODE_NAME_STATUS[node.state]} control={null} />
+  }
+
+  if (draft === null) {
+    return <Row first title="Node name" description={node.name}
+                control={<GhostButton onClick={startEditing}>Rename</GhostButton>} />
+  }
+
+  return (
+    <form onSubmit={save} onKeyDown={(e) => e.key === 'Escape' && cancel()}>
+      <Row first title="Node name"
+           description={
+             <>
+               <input value={draft} autoFocus aria-label="Node name" maxLength={MAX_NODE_NAME_LENGTH}
+                      disabled={busy} onChange={(e) => setDraft(e.target.value)}
+                      className="w-full min-w-[240px] rounded-[8px] border border-[var(--n-mute-4)] bg-transparent px-2.5 py-1.5 text-[14px] text-[var(--n-text)] outline-none focus:border-[var(--n-mute-2)]" />
+               {error && <span role="alert" className="mt-1.5 block text-[13.5px] text-[var(--n-text-2)]">{error}</span>}
+             </>
+           }
+           control={
+             <span className="flex flex-none gap-2">
+               <GhostButton onClick={cancel} disabled={busy}>Cancel</GhostButton>
+               <GhostButton type="submit" disabled={busy}>Save</GhostButton>
+             </span>
+           } />
+    </form>
+  )
+}
+
 function Row({
   title, description, control, first, last,
 }: {
-  title: string; description: string; control: React.ReactNode; first?: boolean; last?: boolean
+  title: string; description: React.ReactNode; control: React.ReactNode; first?: boolean; last?: boolean
 }) {
   const radius = first ? '10px 10px 2px 2px' : last ? '2px 2px 10px 10px' : '2px'
   return (
@@ -91,9 +199,11 @@ function Switch({ on, onChange }: { on: boolean; onChange: (v: boolean) => void 
   )
 }
 
-function GhostButton({ children, onClick, disabled }: { children: React.ReactNode; onClick?: () => void; disabled?: boolean }) {
+function GhostButton({ children, onClick, disabled, type = 'button' }: {
+  children: React.ReactNode; onClick?: () => void; disabled?: boolean; type?: 'button' | 'submit'
+}) {
   return (
-    <button onClick={onClick} disabled={disabled}
+    <button type={type} onClick={onClick} disabled={disabled}
       className="flex-none rounded-[8px] border border-[var(--n-mute-4)] px-[13px] py-[7px] text-[14px] font-semibold leading-none text-[var(--n-text-4)] transition-colors hover:border-[var(--n-mute-2)] hover:text-[var(--n-text-2)]">
       {children}
     </button>
