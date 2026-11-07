@@ -1,13 +1,11 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { AlertCircle, Mail } from 'lucide-react'
+import { AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useAuth } from '@/contexts/AuthContext'
-
-type SignupState = 'form' | 'sent'
 
 function validatePassword(password: string): string | null {
   if (password.length < 8) {
@@ -25,7 +23,6 @@ function validatePassword(password: string): string | null {
 export function SignupPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [state, setState] = useState<SignupState>('form')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const { signup } = useAuth()
@@ -43,36 +40,14 @@ export function SignupPage() {
 
     setLoading(true)
     try {
+      // Signs in too: the account is usable before the email is confirmed.
       await signup(email, password)
-      sessionStorage.setItem('pending_confirmation_email', email)
-      setState('sent')
+      navigate('/onboarding')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Signup failed')
     } finally {
       setLoading(false)
     }
-  }
-
-  if (state === 'sent') {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background p-4">
-        <Card className="w-full max-w-md">
-          <CardContent className="pt-6">
-            <div className="text-center space-y-4 py-8">
-              <Mail className="h-12 w-12 mx-auto text-primary" />
-              <h2 className="text-2xl font-bold">Check your email</h2>
-              <p className="text-muted-foreground">
-                We sent a confirmation link to <span className="font-medium">{email}</span>.
-                Click it to activate your account.
-              </p>
-              <Button variant="outline" onClick={() => navigate('/login')} className="w-full">
-                Back to Login
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    )
   }
 
   return (
