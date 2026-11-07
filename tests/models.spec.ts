@@ -20,6 +20,26 @@ test.describe('Models (demo mode)', () => {
     await expect(page.getByText('Disabled', { exact: true })).toBeVisible()
   })
 
+  test("each model links to its page in the web console", async ({ page }) => {
+    await page.addInitScript(() => {
+      ;(window as unknown as { __openedUrls: string[] }).__openedUrls = []
+      window.open = ((url?: string | URL) => {
+        ;(window as unknown as { __openedUrls: string[] }).__openedUrls.push(String(url))
+        return null
+      }) as typeof window.open
+    })
+    await gotoModels(page)
+
+    const url = 'https://app.getnodea.com/console/models/bartowski%2FLlama-3.2-3B-Instruct-GGUF%3AQ4_K_M'
+    const link = page.getByRole('link', { name: 'Open Llama 3.2 3B Instruct in the web console' })
+    await expect(link).toHaveAttribute('href', url)
+
+    // Opens the browser rather than navigating the app away.
+    await link.click()
+    await expect(page).toHaveURL(/\/models/)
+    expect(await page.evaluate(() => (window as unknown as { __openedUrls: string[] }).__openedUrls)).toEqual([url])
+  })
+
   test('an admin adds a recommended model', async ({ page }) => {
     await gotoModels(page)
     await page.getByRole('button', { name: 'Add models' }).click()

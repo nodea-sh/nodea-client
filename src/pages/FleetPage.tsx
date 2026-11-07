@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { apiClient, type DeviceResponse } from '@/lib/api'
 import { isDemoMode, mockInvoke } from '@/lib/mockTauri'
-import { WEB_CONSOLE_URL } from '@/lib/webConsole'
+import { WEB_CONSOLE_URL, consoleDeviceUrl } from '@/lib/webConsole'
+import { ConsoleLink } from '@/components/ConsoleLink'
 
 /* Open to every member of the organization: the roster it shows is the
  * organization's, not the signed-in user's, so there is nothing here a
@@ -58,7 +59,9 @@ export function FleetPage() {
               <span>
                 <span className="block text-[15px] font-semibold leading-[1.3]"
                       style={{ color: d.connected ? 'var(--n-text)' : 'var(--n-text-2)' }}>
-                  {d.name}
+                  <ConsoleLink href={consoleDeviceUrl(d.user_id, d.id)} label={`Open ${d.name} in the web console`}>
+                    {d.name}
+                  </ConsoleLink>
                   {isThis && (
                     <span className="ml-1.5 rounded-[4px] border border-[var(--n-accent-800)] px-[5px] py-0.5 text-[12px] font-medium leading-none text-[var(--n-accent)]">
                       this device

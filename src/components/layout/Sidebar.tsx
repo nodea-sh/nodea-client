@@ -1,13 +1,11 @@
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { openUrl } from '@tauri-apps/plugin-opener'
 import { Broadcast, Monitor, Gear, CaretDown, Robot, Bug, ArrowClockwise, X, Cube, Key, ArrowSquareOut, Users } from '@phosphor-icons/react'
 import { useAuth } from '@/contexts/AuthContext'
 import { NodeStatusWidget } from '@/components/NodeStatusWidget'
 import type { NodeState } from '@/hooks/useNodePhase'
 import { useUpdater, type Updater } from '@/hooks/useUpdater'
-import { WEB_CONSOLE_URL } from '@/lib/webConsole'
-import { isTauriApp } from '@/lib/platform'
+import { WEB_CONSOLE_URL, openInBrowser } from '@/lib/webConsole'
 
 const NAV = [
   { to: '/node', label: 'Node', Icon: Broadcast },
@@ -54,13 +52,6 @@ function UpdateItem({ updater }: { updater: Updater }) {
       </button>
     </div>
   )
-}
-
-// window.open does nothing in the Tauri webview; the opener plugin hands
-// the URL to the system browser (its scope allows app.getnodea.com).
-function openWebConsole() {
-  if (isTauriApp()) openUrl(WEB_CONSOLE_URL).catch(console.error)
-  else window.open(WEB_CONSOLE_URL, '_blank')
 }
 
 export function Sidebar({ node }: { node: NodeState }) {
@@ -111,7 +102,7 @@ export function Sidebar({ node }: { node: NodeState }) {
 
       {/* Always visible, right above the account menu */}
       <div className="border-t border-[var(--n-line-strong)] px-2.5 py-1.5">
-        <button onClick={openWebConsole}
+        <button onClick={() => openInBrowser(WEB_CONSOLE_URL)}
           className="flex w-full items-center gap-2.5 rounded-[8px] px-2.5 py-2 text-left text-[14px] font-semibold leading-none text-[var(--n-text-4)] transition-colors hover:bg-[var(--n-tint-hover)] hover:text-[var(--n-text-2)]">
           <ArrowSquareOut size={15} />
           Open Web Console

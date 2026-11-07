@@ -36,6 +36,14 @@ test.describe('Fleet (demo mode)', () => {
     })
   }
 
+  test('each device links to its page in the web console', async ({ page }) => {
+    await gotoFleet(page)
+
+    // Owner and device id together: one machine can be registered by two members.
+    await expect(page.getByRole('link', { name: 'Open iPhone 15 in the web console' }))
+      .toHaveAttribute('href', 'https://app.getnodea.com/console/fleet/demo-user/device-002')
+  })
+
   test('the sidebar offers Fleet to a standard member', async ({ page }) => {
     await gotoFleet(page, 'standard')
 

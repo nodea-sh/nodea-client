@@ -9,11 +9,13 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { AddModelsDialog } from '@/components/AddModelsDialog'
+import { ConsoleLink } from '@/components/ConsoleLink'
 import { AdminOnlyNote, DangerButton, EmptyState, GhostButton, PageHeader, PrimaryButton } from '@/components/nocturne'
 import { useAuth } from '@/contexts/AuthContext'
 import { announceModelsChanged } from '@/hooks/useNodePhase'
 import { apiClient, type OrgModel } from '@/lib/api'
 import { formatMemory, modelDisplayName } from '@/lib/recommendedModels'
+import { consoleModelUrl } from '@/lib/webConsole'
 
 /* The organization's models. Every member sees them; only admins add,
  * enable/disable and remove - as the backend enforces. */
@@ -82,7 +84,10 @@ export function ModelsPage() {
               <span className="min-w-0">
                 <span className="block truncate text-[15px] font-semibold leading-[1.3]"
                       style={{ color: m.enabled ? 'var(--n-text)' : 'var(--n-text-4)' }}>
-                  {modelDisplayName(m.ref)}
+                  <ConsoleLink href={consoleModelUrl(m.ref)}
+                               label={`Open ${modelDisplayName(m.ref)} in the web console`}>
+                    {modelDisplayName(m.ref)}
+                  </ConsoleLink>
                 </span>
                 <span className="mt-[3px] block truncate font-mono text-[12.5px] leading-[1.3] text-[var(--n-text-4)]">{m.ref}</span>
               </span>
