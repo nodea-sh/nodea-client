@@ -6,6 +6,7 @@ import { NodeStatusWidget } from '@/components/NodeStatusWidget'
 import type { NodeState } from '@/hooks/useNodePhase'
 import { useUpdater, type Updater } from '@/hooks/useUpdater'
 import { WEB_CONSOLE_URL } from '@/lib/webConsole'
+import { initialsOf, resolveDisplayName } from '@/lib/displayName'
 
 const NAV = [
   { to: '/node', label: 'Node', Icon: Broadcast },
@@ -56,7 +57,8 @@ export function Sidebar({ node }: { node: NodeState }) {
   const [accountOpen, setAccountOpen] = useState(false)
   const updater = useUpdater()
 
-  const initials = (user?.name || user?.email || 'U').slice(0, 2).toUpperCase()
+  const name = resolveDisplayName(user?.name, undefined, user?.email)
+  const initials = initialsOf(name)
 
   return (
     <div className="flex h-screen w-[248px] flex-none flex-col border-r border-[var(--n-line-strong)] bg-[var(--n-sidebar)]">
@@ -102,7 +104,7 @@ export function Sidebar({ node }: { node: NodeState }) {
           <div className="absolute bottom-[calc(100%+6px)] left-2.5 right-2.5 z-[2] rounded-[10px] bg-[var(--n-raised)] p-1.5 shadow-[var(--n-shadow-md)]">
             <div className="px-[9px] pb-[9px] pt-2">
               <span className="block text-[14px] font-semibold leading-[1.3] text-[var(--n-text)]">
-                {user?.name || 'User'}
+                {name}
               </span>
               <span className="mt-0.5 block text-[12.5px] leading-[1.3] text-[var(--n-text-3)]">
                 {isAdmin ? 'Admin' : 'Member'} · {organization?.name}
@@ -130,7 +132,7 @@ export function Sidebar({ node }: { node: NodeState }) {
           </span>
           <span className="min-w-0 flex-1">
             <span className="block text-[14px] font-semibold leading-[1.2] text-[var(--n-text-2)]">
-              {user?.name || 'User'}
+              {name}
             </span>
             <span className="block truncate text-[12.5px] leading-[1.2] text-[var(--n-text-3)]">
               {user?.email}

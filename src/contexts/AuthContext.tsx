@@ -3,6 +3,8 @@ import { invoke } from '@tauri-apps/api/core'
 import { createClient } from '@supabase/supabase-js'
 import { apiClient, Organization } from '../lib/api'
 import { isTauriApp } from '../lib/platform'
+import { isDemoMode } from '../lib/demoMode'
+import { providerNameFromToken, resolveDisplayName } from '../lib/displayName'
 
 // Initialize Supabase client for web mode
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''
@@ -12,8 +14,10 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey)
 interface User {
   uuid: string
   email: string
-  name?: string
-  picture?: string
+  /** What to show for the account; see resolveDisplayName. */
+  name: string
+  /** The identity provider's name, kept to fall back to when full_name is cleared. */
+  providerName?: string
   role: 'admin' | 'standard'
   organization_id: number
 }
@@ -50,20 +54,6 @@ const MEMBERSHIP_CHECK_MS = 60_000
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-// Check if demo mode is enabled
-const isDemoMode = () => {
-  const urlParams = new URLSearchParams(window.location.search)
-  const demoParam = urlParams.get('demo')
-  const storedDemo = localStorage.getItem('demoMode')
-
-  if (demoParam !== null) {
-    const enabled = demoParam === 'true' || demoParam === '1'
-    localStorage.setItem('demoMode', enabled.toString())
-    return enabled
-  }
-
-  return storedDemo === 'true'
-}
 
 // Role of the demo-mode user, overridable with ?role=standard (see
 // mockTauri's ?phase=). Demo mode is admin by default; the override exists so
@@ -81,7 +71,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [wasAccountDeleted, setWasAccountDeleted] = useState(false)
   const organizationRef = useRef<Organization | null>(null)
   const accountDeletedHandled = useRef(false)
-  const demoMode = isDemoMode()
+  // The DEV check is repeated here so a production build drops the demo branches.
+  const demoMode = import.meta.env.DEV && isDemoMode()
 
   useEffect(() => {
     organizationRef.current = organization
@@ -203,6 +194,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const me = await apiClient.getMe()
         if (stopped) return
 
+        // Picks up a name changed in the web console.
+        setUser((u) => u && { ...u, name: resolveDisplayName(me.full_name, u.providerName, u.email) })
         setAccountInactive(!me.is_active)
         if (!me.is_active) await stopSharing()
 
@@ -319,10 +312,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // source of truth here.
       const orgId = org?.id || 0
 
+      const email = currentUser?.email || payload.email
+      const providerName = providerNameFromToken(payload)
+      // The member list's name is the same account name /v1/me returns; the
+      // membership check refreshes it from /v1/me right after this.
       setUser({
         uuid: currentUser?.uuid || payload.sub,
-        email: currentUser?.email || payload.email,
-        name: currentUser?.name || undefined,
+        email,
+        name: resolveDisplayName(currentUser?.name, providerName, email),
+        providerName,
         role: currentUser?.role || 'standard',
         organization_id: orgId,  // 0 if no org
       })
@@ -446,7 +444,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         uuid: 'demo-user-uuid',
         email: 'demo@getnodea.com',
         name: 'Demo User',
-        picture: 'https://ui-avatars.com/api/?name=Demo+User&background=0D8ABC&color=fff',
         role: 'admin',
         organization_id: 1,
       })
