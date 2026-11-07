@@ -65,8 +65,14 @@ pub fn parse_busy_percent(contents: &str) -> Option<u8> {
 /// Prefer the GPU reading; fall back to CPU when the OS gave none.
 pub fn choose(gpu: Option<u8>, cpu: f32) -> MachineUsage {
     match gpu {
-        Some(percent) => MachineUsage { source: UsageSource::Gpu, percent },
-        None => MachineUsage { source: UsageSource::Cpu, percent: clamp_pct(cpu as f64) },
+        Some(percent) => MachineUsage {
+            source: UsageSource::Gpu,
+            percent,
+        },
+        None => MachineUsage {
+            source: UsageSource::Cpu,
+            percent: clamp_pct(cpu as f64),
+        },
     }
 }
 
@@ -86,12 +92,17 @@ fn gpu_utilization() -> Option<u8> {
         .into_iter()
         .flatten()
         .flatten()
-        .filter_map(|card| std::fs::read_to_string(card.path().join("device/gpu_busy_percent")).ok())
+        .filter_map(|card| {
+            std::fs::read_to_string(card.path().join("device/gpu_busy_percent")).ok()
+        })
         .filter_map(|contents| parse_busy_percent(&contents))
         .max();
     amd.or_else(|| {
         let out = std::process::Command::new("nvidia-smi")
-            .args(["--query-gpu=utilization.gpu", "--format=csv,noheader,nounits"])
+            .args([
+                "--query-gpu=utilization.gpu",
+                "--format=csv,noheader,nounits",
+            ])
             .output()
             .ok()?;
         if !out.status.success() {
@@ -120,9 +131,12 @@ impl Default for UsageSampler {
 
 impl UsageSampler {
     pub fn new() -> Self {
-        let system =
-            System::new_with_specifics(RefreshKind::nothing().with_cpu(CpuRefreshKind::nothing().with_cpu_usage()));
-        Self { system: Mutex::new(system) }
+        let system = System::new_with_specifics(
+            RefreshKind::nothing().with_cpu(CpuRefreshKind::nothing().with_cpu_usage()),
+        );
+        Self {
+            system: Mutex::new(system),
+        }
     }
 
     fn cpu_percent(&self) -> f32 {
