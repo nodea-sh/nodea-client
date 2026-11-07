@@ -277,6 +277,8 @@ const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
  *   ?catalog=down   Hugging Face is unreachable (GET /v1/model-catalog 502s)
  *   ?setup=fresh    a new organization: no models, no keys, and nothing on
  *                   the setup checklist done (otherwise it is complete)
+ *   ?device=new     this device has never connected, so the backend has no
+ *                   record of it (GET/PATCH /v1/devices/{id} 404)
  */
 const demoParam = (name: string) => new URLSearchParams(window.location.search).get(name)
 
@@ -502,10 +504,26 @@ export class MockApiClient {
 
   async getDevice(deviceId: string): Promise<DeviceDetailResponse> {
     await delay(300)
-    const device = mockDeviceDetails[deviceId]
+    const device = demoParam('device') === 'new' ? undefined : mockDeviceDetails[deviceId]
     if (!device) {
-      throw new Error('Device not found')
+      throw demoApiError('Device not found', 404)
     }
+    return { ...device }
+  }
+
+  async updateDevice(deviceId: string, data: { name: string }): Promise<DeviceDetailResponse> {
+    await delay(300)
+    const device = demoParam('device') === 'new' ? undefined : mockDeviceDetails[deviceId]
+    if (!device) {
+      throw demoApiError('Device not found', 404)
+    }
+    const name = data.name.trim()
+    if (!name || name.length > 64) {
+      throw demoApiError("'name' must be 1-64 characters", 400)
+    }
+    device.name = name
+    const listed = mockDevices.find((d) => d.id === deviceId)
+    if (listed) listed.name = name
     return { ...device }
   }
 
