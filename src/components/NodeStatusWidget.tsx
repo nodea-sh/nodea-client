@@ -1,5 +1,6 @@
 import { CircleNotch, DownloadSimple, WarningCircle, Cube } from '@phosphor-icons/react'
 import type { NodeState } from '@/hooks/useNodePhase'
+import { downloadSummary } from '@/lib/utils'
 
 /* Sidebar status widget — the single source of truth for "what is the node doing".
  * One card, two-segment progress track: 1 · Download, 2 · Load.
@@ -7,11 +8,12 @@ import type { NodeState } from '@/hooks/useNodePhase'
  */
 export function NodeStatusWidget({ node }: { node: NodeState }) {
   const { phase, modelName, downloadProgress, sharing, setSharing, retry } = node
+  const { downloadedBytes, totalBytes, bytesPerSec, loadElapsedS, backend } = node
   const ready = phase === 'serving' || phase === 'paused'
 
   const header = {
     downloading: { icon: <DownloadSimple size={14} color="var(--n-accent-400)" />, title: 'Downloading', value: `${downloadProgress}%`, valueColor: 'var(--n-accent-300)' },
-    loading: { icon: <CircleNotch size={14} color="var(--n-accent-400)" className="n-spin" />, title: 'Loading', value: '—', valueColor: 'var(--n-text-3)' },
+    loading: { icon: <CircleNotch size={14} color="var(--n-accent-400)" className="n-spin" />, title: 'Loading', value: loadElapsedS === undefined ? '—' : `${loadElapsedS}s`, valueColor: 'var(--n-text-3)' },
     connecting: { icon: <CircleNotch size={14} color="var(--n-accent-400)" className="n-spin" />, title: 'Connecting', value: '—', valueColor: 'var(--n-text-3)' },
     stalled: { icon: <WarningCircle size={14} color="var(--n-text-2)" />, title: 'Download stalled', value: `${downloadProgress}%`, valueColor: 'var(--n-text-3)' },
     offline: { icon: <WarningCircle size={14} color="var(--n-text-2)" />, title: 'Offline', value: '—', valueColor: 'var(--n-text-3)' },
@@ -21,10 +23,10 @@ export function NodeStatusWidget({ node }: { node: NodeState }) {
   }[phase]
 
   const caption = {
-    downloading: `${((downloadProgress / 100) * 4.9).toFixed(1)} of 4.9 GB · 24 MB/s`,
-    loading: 'Mapping 4.9 GB onto Metal · about 20s',
+    downloading: downloadSummary(downloadedBytes, totalBytes, bytesPerSec, ' · ') ?? 'Starting download…',
+    loading: backend && backend !== 'CPU' ? `Loading into memory on ${backend}` : 'Loading into memory',
     connecting: 'Reaching the coordinator…',
-    stalled: 'The model failed. Retry to pick up where it left off.',
+    stalled: 'The model failed. Retry to start again.',
     offline: "Can't reach the coordinator. Retrying on its own.",
     refused: 'The server refused this account. See the Node page.',
     serving: null,

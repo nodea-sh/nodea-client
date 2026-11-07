@@ -113,6 +113,9 @@ mod tests {
             .set_model_status(ModelStatus::Downloading {
                 model_name: "test-model.gguf".to_string(),
                 progress: 0,
+                downloaded_bytes: 0,
+                total_bytes: 0,
+                bytes_per_sec: 0,
             })
             .await;
 
@@ -121,6 +124,7 @@ mod tests {
             ModelStatus::Downloading {
                 model_name,
                 progress,
+                ..
             } => {
                 assert_eq!(model_name, "test-model.gguf");
                 assert_eq!(progress, 0);
@@ -133,6 +137,9 @@ mod tests {
             .set_model_status(ModelStatus::Downloading {
                 model_name: "test-model.gguf".to_string(),
                 progress: 50,
+                downloaded_bytes: 0,
+                total_bytes: 0,
+                bytes_per_sec: 0,
             })
             .await;
 
@@ -148,12 +155,13 @@ mod tests {
         state
             .set_model_status(ModelStatus::Loading {
                 model_name: "test-model.gguf".to_string(),
+                started_at_ms: 0,
             })
             .await;
 
         let snapshot = state.get_all_status().await;
         match snapshot.model {
-            ModelStatus::Loading { model_name } => {
+            ModelStatus::Loading { model_name, .. } => {
                 assert_eq!(model_name, "test-model.gguf");
             }
             _ => panic!("Expected Loading status"),
@@ -163,12 +171,13 @@ mod tests {
         state
             .set_model_status(ModelStatus::Ready {
                 model_name: "test-model.gguf".to_string(),
+                load_ms: None,
             })
             .await;
 
         let snapshot = state.get_all_status().await;
         match snapshot.model {
-            ModelStatus::Ready { model_name } => {
+            ModelStatus::Ready { model_name, .. } => {
                 assert_eq!(model_name, "test-model.gguf");
             }
             _ => panic!("Expected Ready status"),
@@ -184,6 +193,9 @@ mod tests {
             .set_model_status(ModelStatus::Downloading {
                 model_name: "test-model.gguf".to_string(),
                 progress: 25,
+                downloaded_bytes: 0,
+                total_bytes: 0,
+                bytes_per_sec: 0,
             })
             .await;
 
@@ -221,6 +233,7 @@ mod tests {
             state_clone2
                 .set_model_status(ModelStatus::Ready {
                     model_name: "model.gguf".to_string(),
+                    load_ms: None,
                 })
                 .await;
         });
@@ -232,7 +245,7 @@ mod tests {
         let snapshot = state.get_all_status().await;
         assert!(matches!(snapshot.connection, ConnectionStatus::Connected));
         match snapshot.model {
-            ModelStatus::Ready { model_name } => {
+            ModelStatus::Ready { model_name, .. } => {
                 assert_eq!(model_name, "model.gguf");
             }
             _ => panic!("Expected Ready status"),
@@ -251,6 +264,9 @@ mod tests {
                 .set_model_status(ModelStatus::Downloading {
                     model_name: "model.gguf".to_string(),
                     progress,
+                    downloaded_bytes: 0,
+                    total_bytes: 0,
+                    bytes_per_sec: 0,
                 })
                 .await;
 
@@ -280,6 +296,7 @@ mod tests {
         state
             .set_model_status(ModelStatus::Ready {
                 model_name: "model.gguf".to_string(),
+                load_ms: None,
             })
             .await;
         let snapshot = state.get_all_status().await;
