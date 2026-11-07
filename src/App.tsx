@@ -15,10 +15,11 @@ import { FleetPage } from './pages/FleetPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { ModelsPage } from './pages/ModelsPage'
 import { ApiKeysPage } from './pages/ApiKeysPage'
+import { TeamPage } from './pages/TeamPage'
 import { DevLogsPage } from './pages/DevLogsPage'
 import { PlaygroundPage } from './pages/PlaygroundPage'
 
-/* Removed routes: /rewards, /usage, /team, /devices/:deviceId.
+/* Removed routes: /rewards, /usage, /devices/:deviceId.
  * Those live in the web console now. Playground and Dev Logs survive as
  * DEV-only debug tools (see Sidebar.tsx) - not part of the shipped app. */
 
@@ -61,6 +62,7 @@ function App() {
             <Route path="fleet" element={<FleetPage />} />
             <Route path="models" element={<ModelsPage />} />
             <Route path="api-keys" element={<ApiKeysPage />} />
+            <Route path="team" element={<TeamPage />} />
             <Route path="settings" element={<SettingsPage />} />
             {import.meta.env.DEV && <Route path="playground" element={<PlaygroundPage />} />}
             {import.meta.env.DEV && <Route path="dev-logs" element={<DevLogsPage />} />}

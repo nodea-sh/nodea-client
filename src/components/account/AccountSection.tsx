@@ -61,12 +61,12 @@ export function AccountSection() {
              control={<GhostButton onClick={openAccountInBrowser}>Manage account ↗</GhostButton>} />
         {me.organization && (
           <Row title="Leave organization"
-               description={blocked ? "You're the only admin. Promote another member in the web console first." : leaveText}
+               description={blocked ? "You're the only admin. Promote another member in Team first." : leaveText}
                control={<GhostButton onClick={() => setDialog('leave')} disabled={blocked}>Leave</GhostButton>} />
         )}
         <Row last title="Delete account"
              description={blocked
-               ? "You're the only admin. Promote another member in the web console first."
+               ? "You're the only admin. Promote another member in Team first."
                : 'Erases your name and email and removes your devices. This cannot be undone.'}
              control={<GhostButton onClick={() => setDialog('delete')} disabled={blocked || !me.email}>Delete</GhostButton>} />
       </div>

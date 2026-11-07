@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { openUrl } from '@tauri-apps/plugin-opener'
-import { Broadcast, Monitor, Gear, CaretDown, Robot, Bug, ArrowClockwise, X, Cube, Key, ArrowSquareOut } from '@phosphor-icons/react'
+import { Broadcast, Monitor, Gear, CaretDown, Robot, Bug, ArrowClockwise, X, Cube, Key, ArrowSquareOut, Users } from '@phosphor-icons/react'
 import { useAuth } from '@/contexts/AuthContext'
 import { NodeStatusWidget } from '@/components/NodeStatusWidget'
 import type { NodeState } from '@/hooks/useNodePhase'
@@ -14,6 +14,7 @@ const NAV = [
   { to: '/fleet', label: 'Fleet', Icon: Monitor },
   { to: '/models', label: 'Models', Icon: Cube },
   { to: '/api-keys', label: 'API keys', Icon: Key },
+  { to: '/team', label: 'Team', Icon: Users },
   { to: '/settings', label: 'Settings', Icon: Gear },
 ]
 

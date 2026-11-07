@@ -161,6 +161,8 @@ const mockOrganization: Organization = {
   slug: 'demo-org',
   member_count: 5,
   created_at: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
+  plan: { key: 'starter', name: 'Starter', max_devices: 5 },
+  connected_device_count: 2,
 }
 
 const mockMembers: OrganizationMember[] = [
@@ -169,6 +171,7 @@ const mockMembers: OrganizationMember[] = [
     uuid: 'demo-user-uuid',
     email: 'demo@getnodea.com',
     name: 'Demo User',
+    full_name: 'Demo User',
     role: 'admin',
     is_active: true,
     created_at: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
@@ -180,6 +183,7 @@ const mockMembers: OrganizationMember[] = [
     uuid: 'user-2-uuid',
     email: 'alice@getnodea.com',
     name: 'Alice Johnson',
+    full_name: 'Alice Johnson',
     role: 'admin',
     is_active: true,
     created_at: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
@@ -191,6 +195,7 @@ const mockMembers: OrganizationMember[] = [
     uuid: 'user-3-uuid',
     email: 'bob@getnodea.com',
     name: 'Bob Smith',
+    full_name: 'Bob Smith',
     role: 'standard',
     is_active: true,
     created_at: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString(),
@@ -202,6 +207,7 @@ const mockMembers: OrganizationMember[] = [
     uuid: 'user-4-uuid',
     email: 'charlie@getnodea.com',
     name: 'Charlie Davis',
+    full_name: 'Charlie Davis',
     role: 'standard',
     is_active: true,
     created_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
@@ -213,6 +219,7 @@ const mockMembers: OrganizationMember[] = [
     uuid: 'user-5-uuid',
     email: 'diana@getnodea.com',
     name: 'Diana Prince',
+    full_name: 'Diana Prince',
     role: 'standard',
     is_active: false,
     created_at: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),

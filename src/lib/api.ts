@@ -103,6 +103,8 @@ interface Organization {
   created_at: string
   // The caller's role, read fresh with the organization (GET /v1/organization).
   current_user_role?: 'admin' | 'standard'
+  plan?: { key: string; name: string; max_devices: number }
+  connected_device_count?: number
 }
 
 interface OrganizationMember {
@@ -110,6 +112,8 @@ interface OrganizationMember {
   uuid: string
   email: string
   name: string | null
+  // What GET /v1/users actually sends for the person's name.
+  full_name?: string | null
   role: 'admin' | 'standard'
   is_active: boolean
   created_at: string
