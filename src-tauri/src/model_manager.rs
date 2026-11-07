@@ -11,8 +11,9 @@ use tokio_util::sync::CancellationToken;
 
 pub use nodea_inference::download::{download_model_to, DownloadProgress, DownloadTimeouts};
 pub use nodea_inference::{
-    describe_prompt, ChatTurn, GenerationOptions, GenerationOutcome, GenerationUsage, LoadOptions,
-    TokenUpdate, DEFAULT_MAX_TOKENS, DEFAULT_SYSTEM_PROMPT, DEFAULT_TEMPERATURE,
+    describe_prompt, ChatTurn, GenerationError, GenerationOptions, GenerationOutcome,
+    GenerationUsage, LoadOptions, TokenUpdate, DEFAULT_MAX_TOKENS, DEFAULT_SYSTEM_PROMPT,
+    DEFAULT_TEMPERATURE,
 };
 
 pub struct ModelManager {
@@ -63,7 +64,8 @@ impl ModelManager {
                 Ok(())
             },
         )
-        .await?;
+        .await
+        .map_err(|e| e.message)?;
 
         println!("Generation complete!");
         Ok(text)
@@ -77,11 +79,14 @@ impl ModelManager {
         options: &GenerationOptions,
         cancel: &CancellationToken,
         callback: F,
-    ) -> Result<GenerationOutcome, String>
+    ) -> Result<GenerationOutcome, GenerationError>
     where
         F: FnMut(TokenUpdate) -> Result<(), String> + Send,
     {
-        let model = self.model.as_ref().ok_or("Model not loaded")?;
+        let model = self
+            .model
+            .as_ref()
+            .ok_or_else(|| GenerationError::from("Model not loaded"))?;
         model
             .generate_streaming(turns, options, cancel, callback)
             .await

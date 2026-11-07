@@ -13,7 +13,8 @@
 
 use nodea_inference::proto::{ChatCompletionRequest, GeneratedText};
 use nodea_inference::{
-    request, test_models, wire, GenerationOutcome, LoadOptions, Model, RenderedPrompt,
+    request, test_models, wire, ContextSize, GenerationError, GenerationOutcome, LoadOptions,
+    Model, RenderedPrompt,
 };
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
@@ -35,7 +36,7 @@ pub fn rt() -> &'static tokio::runtime::Runtime {
 /// The options every fixture loads with: CPU only, and a context small enough
 /// to be quick but big enough for the tool prompts.
 pub const FIXTURE_LOAD: LoadOptions = LoadOptions {
-    n_ctx: 4096,
+    n_ctx: ContextSize::Fixed(4096),
     n_gpu_layers: 0,
 };
 
@@ -106,7 +107,7 @@ pub struct Run {
     /// Every `GeneratedText` the backend would have received, in order. A
     /// failure is the terminal error message grpc_client sends.
     pub messages: Vec<GeneratedText>,
-    pub outcome: Result<GenerationOutcome, String>,
+    pub outcome: Result<GenerationOutcome, GenerationError>,
     pub elapsed: Duration,
 }
 
@@ -143,6 +144,11 @@ impl Run {
     /// The error grpc_client would have sent, if the generation failed.
     pub fn error(&self) -> Option<&str> {
         self.messages.iter().find_map(|m| m.error.as_deref())
+    }
+
+    /// Its `error_code`, when the request itself was the cause.
+    pub fn error_code(&self) -> Option<&str> {
+        self.messages.iter().find_map(|m| m.error_code.as_deref())
     }
 
     pub fn usage(&self) -> nodea_inference::proto::Usage {

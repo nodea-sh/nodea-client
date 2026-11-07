@@ -398,6 +398,7 @@ async fn a_terminal_generated_text_carries_all_its_metadata_back() {
             }),
             finish_reason: Some("length".to_string()),
             error: None,
+            error_code: None,
             tool_calls: Some(r#"[{"id":"call_1"}]"#.to_string()),
             logprobs: Some(r#"{"token":"Hello"}"#.to_string()),
             choice_index: Some(2),

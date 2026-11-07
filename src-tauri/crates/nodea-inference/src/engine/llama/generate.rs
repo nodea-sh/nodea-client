@@ -11,7 +11,8 @@ use super::stop::StopMatcher;
 use super::utf8::Utf8Assembler;
 use super::{backend, Inner};
 use crate::types::{
-    GenerationOptions, GenerationOutcome, GenerationUsage, TokenUpdate, DEFAULT_MAX_TOKENS,
+    GenerationError, GenerationOptions, GenerationOutcome, GenerationUsage, TokenUpdate,
+    DEFAULT_MAX_TOKENS,
 };
 use llama_cpp_4::chat::{ChatParams, ToolChoice};
 use llama_cpp_4::context::params::LlamaContextParams;
@@ -53,10 +54,11 @@ impl Plan {
         inputs: &ChatInputs,
         applied: ChatParams,
         options: &GenerationOptions,
-    ) -> Result<Self, String> {
+    ) -> Result<Self, GenerationError> {
         let model = &inner.model;
         let n_vocab = model.n_vocab() as u32;
-        let sampler = sampling::config(options, n_vocab)?;
+        let sampler =
+            sampling::config(options, n_vocab).map_err(GenerationError::invalid_request)?;
 
         let add_bos = if model.add_bos_token() {
             AddBos::Always
@@ -68,11 +70,11 @@ impl Plan {
             .map_err(|e| format!("Could not tokenize the prompt: {e}"))?;
         let n_ctx = inner.n_ctx as usize;
         if prompt.len() + 1 > n_ctx {
-            return Err(format!(
+            return Err(GenerationError::context_length_exceeded(format!(
                 "The prompt is {} tokens, which does not fit this model's {}-token context",
                 prompt.len(),
                 n_ctx
-            ));
+            )));
         }
 
         let strings =

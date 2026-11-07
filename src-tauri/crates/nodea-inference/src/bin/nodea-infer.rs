@@ -9,7 +9,9 @@
 //! No Tauri, no gRPC server, no GPU required (`--gpu-layers 0`).
 
 use nodea_inference::proto::GeneratedText;
-use nodea_inference::{request, test_models, wire, LoadOptions, Model};
+use nodea_inference::{
+    request, test_models, wire, ContextSize, LoadOptions, Model, DEFAULT_CONTEXT,
+};
 use std::collections::BTreeMap;
 use std::io::Write;
 use std::path::PathBuf;
@@ -53,7 +55,7 @@ fn parse_args() -> Result<Args, String> {
         request: None,
         prompt: None,
         load: LoadOptions {
-            n_ctx: 4096,
+            n_ctx: ContextSize::Fixed(4096),
             ..LoadOptions::default()
         },
         format: Format::Jsonl,
@@ -67,7 +69,12 @@ fn parse_args() -> Result<Args, String> {
             "--model" => args.model = value()?,
             "--request" => args.request = Some(PathBuf::from(value()?)),
             "--prompt" => args.prompt = Some(value()?),
-            "--n-ctx" => args.load.n_ctx = value()?.parse().map_err(|e| format!("--n-ctx: {e}"))?,
+            "--n-ctx" => {
+                args.load.n_ctx = match value()?.as_str() {
+                    "fit" => DEFAULT_CONTEXT,
+                    n => ContextSize::Fixed(n.parse().map_err(|e| format!("--n-ctx: {e}"))?),
+                }
+            }
             "--gpu-layers" => {
                 args.load.n_gpu_layers =
                     value()?.parse().map_err(|e| format!("--gpu-layers: {e}"))?
@@ -267,5 +274,5 @@ async fn run(args: Args) -> Result<(), String> {
         );
     }
 
-    outcome.map(|_| ())
+    outcome.map(|_| ()).map_err(|e| e.message)
 }

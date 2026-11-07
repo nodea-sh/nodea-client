@@ -810,7 +810,7 @@ async fn handle_server_message(
                 // whatever replaces it.
                 let error = "Node is switching models; retry on another node";
                 log_message(&state.message_log, app_handle, "ChatError", error).await;
-                send_generation_error(tx, device_id, &request_id, error).await;
+                send_generation_error(tx, device_id, &request_id, &error.into()).await;
                 return;
             };
             let generations = state.generations.clone();
@@ -952,7 +952,7 @@ async fn send_generation_error(
     tx: &tokio::sync::mpsc::Sender<StreamEventsRequest>,
     device_id: &str,
     request_id: &str,
-    error: &str,
+    error: &model_manager::GenerationError,
 ) {
     let request = StreamEventsRequest {
         msg: Some(stream_events_request::Msg::GeneratedText(
@@ -978,9 +978,9 @@ async fn handle_chat_completion(
     turns: Vec<model_manager::ChatTurn>,
     options: model_manager::GenerationOptions,
     cancel: &CancellationToken,
-) -> Result<(), String> {
+) -> Result<(), model_manager::GenerationError> {
     if turns.is_empty() {
-        return Err("No messages in chat request".to_string());
+        return Err("No messages in chat request".into());
     }
 
     log_message(
@@ -996,7 +996,7 @@ async fn handle_chat_completion(
 
     // Check if model is loaded
     if !model_mgr.is_loaded() {
-        return Err("Model not loaded".to_string());
+        return Err("Model not loaded".into());
     }
 
     // Prepare variables for the callback

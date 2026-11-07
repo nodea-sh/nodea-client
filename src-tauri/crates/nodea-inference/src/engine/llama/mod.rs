@@ -8,8 +8,8 @@ mod stop;
 mod utf8;
 
 use crate::types::{
-    ChatTurn, GenerationOptions, GenerationOutcome, LoadOptions, ModelInfo, RenderedPrompt,
-    TokenUpdate,
+    ChatTurn, ContextSize, GenerationError, GenerationOptions, GenerationOutcome, LoadOptions,
+    ModelInfo, RenderedPrompt, TokenUpdate,
 };
 use chat::ChatInputs;
 use llama_cpp_4::chat::{ChatParams, ChatTemplates};
@@ -149,17 +149,22 @@ impl Model {
         options: &GenerationOptions,
         cancel: &CancellationToken,
         mut callback: F,
-    ) -> Result<GenerationOutcome, String>
+    ) -> Result<GenerationOutcome, GenerationError>
     where
         F: FnMut(TokenUpdate) -> Result<(), String>,
     {
         if turns.is_empty() {
-            return Err("No messages in chat request".to_string());
+            return Err(GenerationError::invalid_request(
+                "No messages in chat request",
+            ));
         }
 
         // Everything that can reject the request does so here, before a
-        // single token is generated.
-        let inputs = ChatInputs::from_request(turns, options)?;
+        // single token is generated. A request the chat layer cannot accept
+        // (tool_choice naming a tool that is not there, web_search_options,
+        // an unknown reasoning_effort) is the request's fault, not the node's.
+        let inputs =
+            ChatInputs::from_request(turns, options).map_err(GenerationError::invalid_request)?;
         let applied = self.inner.apply(&inputs)?;
         let plan = generate::Plan::new(&self.inner, &inputs, applied, options)?;
 
@@ -177,11 +182,12 @@ impl Model {
             if let Err(error) = callback(update) {
                 drop(rx);
                 let _ = task.await;
-                return Err(error);
+                return Err(error.into());
             }
         }
         task.await
             .map_err(|e| format!("Generation panicked: {e}"))?
+            .map_err(GenerationError::from)
     }
 }
 
@@ -199,6 +205,11 @@ fn load_blocking(path: &Path, options: LoadOptions) -> Result<Model, String> {
     let backend = backend();
     take_last_error();
 
+    let requested_ctx = match options.n_ctx {
+        ContextSize::Fixed(n_ctx) => n_ctx,
+        ContextSize::Fit { min, max } => fit_context(backend, path, options.n_gpu_layers, min, max),
+    };
+
     let params = LlamaModelParams::default().with_n_gpu_layers(options.n_gpu_layers);
     let model = LlamaModel::load_from_file(backend, path, &params).map_err(|e| {
         let reason = take_last_error();
@@ -209,12 +220,7 @@ fn load_blocking(path: &Path, options: LoadOptions) -> Result<Model, String> {
         }
     })?;
 
-    let n_ctx_train = model.n_ctx_train();
-    let n_ctx = if n_ctx_train > 0 {
-        options.n_ctx.min(n_ctx_train)
-    } else {
-        options.n_ctx
-    };
+    let n_ctx = clamp_to_trained(requested_ctx, model.n_ctx_train());
 
     let templates = ChatTemplates::from_model(&model, None)
         .map_err(|e| format!("Failed to load model: it has no usable chat template: {e}"))?;
@@ -230,6 +236,54 @@ fn load_blocking(path: &Path, options: LoadOptions) -> Result<Model, String> {
     Ok(Model {
         inner: Arc::new(inner),
     })
+}
+
+/// The largest context that fits the device's free memory, between `min` and
+/// `max`, as llama.cpp's own estimate (`common_fit_params`) puts it.
+///
+/// llama.cpp starts from the model's trained context and shrinks it until the
+/// weights, the KV cache and the compute buffers fit with a 1 GiB margin per
+/// device. GPU layers are pinned to `n_gpu_layers`, so only the context moves.
+/// It reads the file without allocating anything. If it cannot produce an
+/// estimate, `min` is used: the context the node has always had.
+fn fit_context(backend: &LlamaBackend, path: &Path, n_gpu_layers: u32, min: u32, max: u32) -> u32 {
+    use llama_cpp_4::fit::{fit_params, FitParams};
+
+    let request = FitParams {
+        model_params: LlamaModelParams::default().with_n_gpu_layers(n_gpu_layers),
+        n_ctx_min: min,
+        ..FitParams::default()
+    };
+    match fit_params(backend, path, request) {
+        Ok(fitted) => {
+            let fitted = fitted
+                .context_params
+                .n_ctx()
+                .map(|n| n.get())
+                .unwrap_or(min);
+            let chosen = choose_context(fitted, min, max);
+            eprintln!("Context: {fitted} tokens fit in free memory; using {chosen}");
+            chosen
+        }
+        Err(error) => {
+            eprintln!("Could not estimate the context that fits ({error}); using {min}");
+            min
+        }
+    }
+}
+
+/// `fitted`, kept within `min..=max`.
+fn choose_context(fitted: u32, min: u32, max: u32) -> u32 {
+    fitted.clamp(min, max.max(min))
+}
+
+/// Never more than the model was trained on (0 means it does not say).
+fn clamp_to_trained(n_ctx: u32, n_ctx_train: u32) -> u32 {
+    if n_ctx_train > 0 {
+        n_ctx.min(n_ctx_train)
+    } else {
+        n_ctx
+    }
 }
 
 /// What the model can do, probed once at load.
@@ -270,5 +324,25 @@ fn describe(inner: &Inner) -> ModelInfo {
             && with_tools.is_ok(),
         supports_thinking: plain.map(|a| a.supports_thinking).unwrap_or(false)
             || inner.templates.supports_enable_thinking(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_fitted_context_is_kept_between_the_floor_and_the_ceiling() {
+        assert_eq!(choose_context(20_000, 8192, 32768), 20_000);
+        assert_eq!(choose_context(131_072, 8192, 32768), 32768);
+        // Too little memory for the floor: the floor still holds, as before.
+        assert_eq!(choose_context(2048, 8192, 32768), 8192);
+    }
+
+    #[test]
+    fn the_context_never_exceeds_what_the_model_was_trained_for() {
+        assert_eq!(clamp_to_trained(32768, 4096), 4096);
+        assert_eq!(clamp_to_trained(8192, 131_072), 8192);
+        assert_eq!(clamp_to_trained(8192, 0), 8192);
     }
 }

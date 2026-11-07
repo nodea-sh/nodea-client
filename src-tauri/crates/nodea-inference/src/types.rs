@@ -94,6 +94,63 @@ pub fn describe_prompt(prompt: &str, max_tokens: usize) -> String {
     )
 }
 
+/// Why a generation failed.
+///
+/// `code` is set when the request itself was the cause, so the backend can
+/// answer with a 400 its client can act on instead of a 502 it would retry.
+/// It travels as `GeneratedText.error_code`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct GenerationError {
+    pub code: Option<&'static str>,
+    pub message: String,
+}
+
+/// The prompt does not fit the model's context window.
+pub const ERROR_CONTEXT_LENGTH_EXCEEDED: &str = "context_length_exceeded";
+/// Something in the request the node cannot serve, e.g. a `logit_bias` id
+/// outside this model's vocabulary.
+pub const ERROR_INVALID_REQUEST: &str = "invalid_request";
+
+impl GenerationError {
+    pub fn context_length_exceeded(message: impl Into<String>) -> Self {
+        Self {
+            code: Some(ERROR_CONTEXT_LENGTH_EXCEEDED),
+            message: message.into(),
+        }
+    }
+
+    pub fn invalid_request(message: impl Into<String>) -> Self {
+        Self {
+            code: Some(ERROR_INVALID_REQUEST),
+            message: message.into(),
+        }
+    }
+}
+
+/// An error with no code: the node's own failure, not the request's.
+impl From<String> for GenerationError {
+    fn from(message: String) -> Self {
+        Self {
+            code: None,
+            message,
+        }
+    }
+}
+
+impl From<&str> for GenerationError {
+    fn from(message: &str) -> Self {
+        message.to_string().into()
+    }
+}
+
+impl std::fmt::Display for GenerationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.message)
+    }
+}
+
+impl std::error::Error for GenerationError {}
+
 /// How a generation ended.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum GenerationOutcome {
@@ -137,11 +194,29 @@ pub struct TokenUpdate {
     pub logprobs: Option<String>,
 }
 
+/// How large a context window to load a model with. Either way it is never
+/// larger than the context the model was trained for.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum ContextSize {
+    /// Exactly this many tokens.
+    Fixed(u32),
+    /// As large as fits the device's free memory, between `min` and `max`.
+    /// `min` is kept even when it does not strictly fit, so a device never
+    /// gets less than that.
+    Fit { min: u32, max: u32 },
+}
+
+/// The app's context: at least 8,192 tokens, up to 32,768 where memory allows.
+pub const DEFAULT_CONTEXT: ContextSize = ContextSize::Fit {
+    min: 8192,
+    max: 32768,
+};
+
 /// How to load a model.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct LoadOptions {
     /// Context window, clamped to the model's trained context.
-    pub n_ctx: u32,
+    pub n_ctx: ContextSize,
     /// Layers to offload to the GPU. `u32::MAX` is all of them; 0 forces CPU.
     pub n_gpu_layers: u32,
 }
@@ -149,7 +224,7 @@ pub struct LoadOptions {
 impl Default for LoadOptions {
     fn default() -> Self {
         Self {
-            n_ctx: 8192,
+            n_ctx: DEFAULT_CONTEXT,
             n_gpu_layers: u32::MAX,
         }
     }

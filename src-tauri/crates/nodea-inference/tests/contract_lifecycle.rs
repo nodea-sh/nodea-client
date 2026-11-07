@@ -2,7 +2,7 @@
 
 mod support;
 
-use nodea_inference::{GenerationOutcome, LoadOptions, Model};
+use nodea_inference::{ContextSize, GenerationOutcome, LoadOptions, Model};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use support::{assert_invariants, model, model_path, req, rt, run, run_with, FIXTURE_LOAD};
@@ -62,7 +62,7 @@ fn prompt_longer_than_context_fails_cleanly() {
         .block_on(Model::load(
             &path,
             LoadOptions {
-                n_ctx: 512,
+                n_ctx: ContextSize::Fixed(512),
                 ..FIXTURE_LOAD
             },
         ))
@@ -76,6 +76,8 @@ fn prompt_longer_than_context_fails_cleanly() {
 
     assert_invariants(&request, &run);
     let error = run.error().expect("an error, not a generation");
+    // The request's fault, so the backend can answer 400, not 502.
+    assert_eq!(run.error_code(), Some("context_length_exceeded"));
     // Both numbers, so the caller can tell how far over it was.
     assert!(error.contains("512"), "{error}");
     assert!(

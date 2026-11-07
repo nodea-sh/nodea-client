@@ -70,7 +70,7 @@ mod tests {
             )
             .await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("not loaded"));
+        assert!(result.unwrap_err().message.contains("not loaded"));
     }
 
     // Integration test (requires actual GGUF model file)

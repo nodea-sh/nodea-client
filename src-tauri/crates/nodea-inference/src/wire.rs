@@ -1,7 +1,7 @@
 //! What the node puts on the wire for a generation: `TokenUpdate`s and
 //! failures, as the proto's `GeneratedText`.
 
-use crate::types::TokenUpdate;
+use crate::types::{GenerationError, TokenUpdate};
 use nodea_proto::{GeneratedText, Usage};
 
 /// One streamed update. Terminal metadata rides the terminal token, so the
@@ -21,6 +21,7 @@ pub fn generated_text(request_id: &str, update: &TokenUpdate) -> GeneratedText {
         }),
         finish_reason: update.finish_reason.clone(),
         error: None,
+        error_code: None,
         tool_calls: update.tool_calls.clone(),
         logprobs: update.logprobs.clone(),
     }
@@ -31,14 +32,18 @@ pub fn generated_text(request_id: &str, update: &TokenUpdate) -> GeneratedText {
 /// Shaped as a GeneratedText with `last` set and `error` populated - the same
 /// shape the backend's own timeout sentinel already produces - so no new
 /// message type or correlation logic is needed.
-pub fn generation_error(request_id: &str, error: &str) -> GeneratedText {
+///
+/// `error_code` says when the request itself was the cause (see
+/// `GenerationError`); a backend that predates it reads `error` alone.
+pub fn generation_error(request_id: &str, error: &GenerationError) -> GeneratedText {
     GeneratedText {
         request_id: request_id.to_string(),
         text: String::new(),
         last: true,
         usage: None,
         finish_reason: None,
-        error: Some(error.to_string()),
+        error: Some(error.message.clone()),
+        error_code: error.code.map(str::to_string),
         tool_calls: None,
         logprobs: None,
         choice_index: None,
@@ -98,11 +103,26 @@ mod tests {
 
     #[test]
     fn an_error_is_one_terminal_message_with_no_text() {
-        let message = generation_error("req", "boom");
+        let message = generation_error("req", &"boom".into());
 
         assert!(message.last);
         assert!(message.text.is_empty());
         assert_eq!(message.error.as_deref(), Some("boom"));
+        assert_eq!(message.error_code, None);
         assert_eq!(message.finish_reason, None);
+    }
+
+    #[test]
+    fn a_request_error_carries_its_code() {
+        let message = generation_error(
+            "req",
+            &GenerationError::context_length_exceeded("The prompt is 9000 tokens"),
+        );
+
+        assert_eq!(
+            message.error_code.as_deref(),
+            Some("context_length_exceeded")
+        );
+        assert_eq!(message.error.as_deref(), Some("The prompt is 9000 tokens"));
     }
 }

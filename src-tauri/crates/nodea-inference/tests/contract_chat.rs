@@ -212,6 +212,7 @@ fn out_of_vocab_logit_bias_is_an_error() {
 
     assert_invariants(&request, &run);
     assert!(run.error().is_some(), "{:#?}", run.messages);
+    assert_eq!(run.error_code(), Some("invalid_request"));
 }
 
 #[test]

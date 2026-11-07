@@ -66,6 +66,15 @@ message GeneratedText {
   // `last` per-choice instead would have meant the backend could not tell when
   // to stop reading, and get_response would have needed to know n.
   optional uint32 choice_index = 9;
+
+  // Set with `error` when the request itself caused the failure, so the
+  // backend can answer with a 400 the client can act on instead of a 502:
+  //   "context_length_exceeded" - the prompt does not fit the model's context;
+  //   "invalid_request" - something else in the request this node cannot
+  //   serve, e.g. a logit_bias token id outside the model's vocabulary.
+  // Unset for the node's own failures. A backend that predates it reads
+  // `error` alone and keeps answering 502.
+  optional string error_code = 10;
 }
 
 message Heartbeat {
