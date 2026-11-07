@@ -133,7 +133,7 @@ export function NodePage() {
       kicker: null,
       KickerIcon: Broadcast,
       spin: false,
-      title: 'This device is serving the network.',
+      title: '',
       body: node.modelName
         ? node.loadMs !== undefined
           ? `${node.modelName}, loaded in ${formatDuration(node.loadMs)}.`
@@ -183,9 +183,16 @@ export function NodePage() {
               {node.phase === 'serving' ? `Serving · ${organization?.name}` : hero.kicker}
             </div>
           )}
-          <h1 className="mt-3.5 max-w-[440px] text-[32px] font-semibold leading-[1.15] tracking-[-0.02em] text-[var(--n-text)] [text-wrap:pretty]">
-            {hero.title}
-          </h1>
+          {node.phase === 'serving' ? (
+            <div className="mt-3.5 flex items-center gap-2">
+              <StatusBadge label="Connected" />
+              <StatusBadge label="Serving" />
+            </div>
+          ) : (
+            <h1 className="mt-3.5 max-w-[440px] text-[32px] font-semibold leading-[1.15] tracking-[-0.02em] text-[var(--n-text)] [text-wrap:pretty]">
+              {hero.title}
+            </h1>
+          )}
           {hero.body && (
             <p className="mt-2.5 max-w-[400px] text-[15px] leading-[1.6] text-[var(--n-text-4)]">{hero.body}</p>
           )}
@@ -214,6 +221,15 @@ export function NodePage() {
                          announceModelsChanged()
                        }} />
     </div>
+  )
+}
+
+function StatusBadge({ label }: { label: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-[6px] border border-[var(--n-accent-800)] px-2 py-1 text-[13px] font-medium leading-none text-[var(--n-accent-300)]">
+      <span className="n-pulse h-[7px] w-[7px] rounded-full bg-[var(--n-accent-400)]" />
+      {label}
+    </span>
   )
 }
 

@@ -11,6 +11,12 @@ async function gotoPhase(page: Page, phase: string) {
   await page.waitForLoadState('domcontentloaded')
 }
 
+async function expectServingBadges(page: Page) {
+  await expect(page.getByText('Connected', { exact: true })).toBeVisible()
+  await expect(page.getByText('Serving', { exact: true })).toBeVisible()
+  await expect(page.locator('h1')).toHaveCount(0)
+}
+
 test.describe('Node phases (demo mode)', () => {
   test('downloading: widget and hero agree', async ({ page }) => {
     await gotoPhase(page, 'downloading')
@@ -83,7 +89,7 @@ test.describe('Node phases (demo mode)', () => {
 
     // "Sharing" appears twice while ready (widget title + toggle row label).
     await expect(page.getByText('Sharing', { exact: true }).first()).toBeVisible()
-    await expect(page.locator('h1')).toHaveText('This device is serving the network.')
+    await expectServingBadges(page)
   })
 
   test('paused: widget and hero agree', async ({ page }) => {
@@ -96,7 +102,7 @@ test.describe('Node phases (demo mode)', () => {
   test('sharing toggle flips widget, hero and ring together', async ({ page }) => {
     await gotoPhase(page, 'serving')
 
-    await expect(page.locator('h1')).toHaveText('This device is serving the network.')
+    await expectServingBadges(page)
 
     // The whole status widget is the sharing toggle when the node is ready.
     await page.locator('button[aria-pressed]').click()
@@ -104,9 +110,9 @@ test.describe('Node phases (demo mode)', () => {
     await expect(page.getByText('Paused', { exact: true })).toBeVisible()
     await expect(page.locator('h1')).toHaveText('Paused. This device is idle.')
 
-    // Toggling back should restore the serving copy.
+    // Toggling back should restore the serving badges.
     await page.locator('button[aria-pressed]').click()
-    await expect(page.locator('h1')).toHaveText('This device is serving the network.')
+    await expectServingBadges(page)
   })
 })
 
