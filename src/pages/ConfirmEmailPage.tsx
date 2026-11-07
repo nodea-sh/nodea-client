@@ -14,7 +14,7 @@ export function ConfirmEmailPage() {
   const { token } = useParams<{ token: string }>()
   const navigate = useNavigate()
   // Signing up signs the user in, so the link is usually opened with a session.
-  const { isAuthenticated, user } = useAuth()
+  const { isAuthenticated, user, refreshOrganization } = useAuth()
   const knownEmail = user?.email ?? ''
 
   const [state, setState] = useState<ConfirmState>('loading')
@@ -44,6 +44,8 @@ export function ConfirmEmailPage() {
       setError(null)
       await apiClient.confirmEmail(confirmToken)
       setState('confirmed')
+      // Picks up the confirmed flag, which unlocks inviting teammates.
+      if (isAuthenticated) void refreshOrganization()
     } catch (err) {
       setState('expired')
       setError(err instanceof Error ? err.message : 'This link has expired or was already used')

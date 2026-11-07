@@ -70,6 +70,16 @@ test.describe('Team (demo mode)', () => {
     await expect(page.getByRole('button', { name: /^Edit role/ })).toHaveCount(0)
   })
 
+  test('an admin who has not confirmed their email cannot invite, change roles or revoke yet', async ({ page }) => {
+    await gotoTeam(page, '&email=unconfirmed')
+
+    await expect(page.getByTestId('confirm-email-note')).toBeVisible()
+    await expect(page.getByPlaceholder('teammate@company.com')).toBeDisabled()
+    await expect(page.getByRole('button', { name: 'Send invite' })).toBeDisabled()
+    await expect(page.getByRole('button', { name: /^Edit role/ }).first()).toBeDisabled()
+    await expect(page.getByRole('button', { name: /^Revoke invitation/ }).first()).toBeDisabled()
+  })
+
   test('the sidebar links to Team', async ({ page }) => {
     await page.goto('/node?demo=true&phase=serving')
     await page.getByRole('navigation').getByRole('link', { name: 'Team' }).click()

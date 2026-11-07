@@ -24,6 +24,9 @@ interface AuthContextType {
   organizationLoadError: string | null
   isAuthenticated: boolean
   isAdmin: boolean
+  /** Whether the user has confirmed their email. Everything works before
+   * that except inviting people and changing members. */
+  emailConfirmed: boolean
   isLoading: boolean
   login: (email: string, password: string) => Promise<void>
   signup: (email: string, password: string) => Promise<void>
@@ -518,6 +521,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // at sign-in, so it still says "standard" for someone who has just
         // created an organization (and so become its admin).
         isAdmin: (organization?.current_user_role ?? user?.role) === 'admin',
+        emailConfirmed: organization?.email_confirmed ?? true,
         isLoading,
         login,
         signup,

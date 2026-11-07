@@ -277,6 +277,7 @@ const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
  *   ?catalog=down   Hugging Face is unreachable (GET /v1/model-catalog 502s)
  *   ?setup=fresh    a new organization: no models, no keys, and nothing on
  *                   the setup checklist done (otherwise it is complete)
+ *   ?email=unconfirmed  the demo user has not confirmed their email yet
  */
 const demoParam = (name: string) => new URLSearchParams(window.location.search).get(name)
 
@@ -529,7 +530,7 @@ export class MockApiClient {
   // Organizations
   async getOrganization(): Promise<Organization> {
     await delay(300)
-    return { ...this.organization }
+    return { ...this.organization, email_confirmed: demoParam('email') !== 'unconfirmed' }
   }
 
   async updateOrganization(data: { name?: string }): Promise<Organization> {

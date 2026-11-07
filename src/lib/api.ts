@@ -105,6 +105,9 @@ interface Organization {
   current_user_role?: 'admin' | 'standard'
   plan?: { key: string; name: string; max_devices: number }
   connected_device_count?: number
+  // False until the caller confirms the email of a password signup. Inviting
+  // people and changing members wait for it (403 email_not_confirmed).
+  email_confirmed?: boolean
 }
 
 interface OrganizationMember {
