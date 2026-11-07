@@ -177,6 +177,10 @@ export const mockInvoke = async <T>(command: string, args?: any): Promise<T> => 
     case 'get_inference_backend':
       return 'Metal' as unknown as T
 
+    case 'get_system_memory':
+      // A 16 GB Apple Silicon Mac: Metal's working set is about two thirds.
+      return { total_memory_mb: 16384, available_memory_mb: 9000, accelerator_memory_mb: 10923 } as unknown as T
+
     case 'get_device_id':
       return 'device-001' as unknown as T
 

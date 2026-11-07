@@ -20,6 +20,7 @@ export function NodeStatusWidget({ node }: { node: NodeState }) {
     refused: { icon: <WarningCircle size={14} color="var(--n-text-2)" />, title: 'Not sharing', value: '—', valueColor: 'var(--n-text-3)' },
     serving: { icon: <Dot on />, title: 'Sharing', value: '100%', valueColor: 'var(--n-accent-300)' },
     paused: { icon: <Dot />, title: 'Paused', value: '100%', valueColor: 'var(--n-text-3)' },
+    'no-models': { icon: <Dot />, title: 'Waiting for a model', value: '—', valueColor: 'var(--n-text-3)' },
   }[phase]
 
   const caption = {
@@ -31,9 +32,10 @@ export function NodeStatusWidget({ node }: { node: NodeState }) {
     refused: 'The server refused this account. See the Node page.',
     serving: null,
     paused: 'Not taking new work. The model stays loaded, so resuming is instant.',
+    'no-models': 'Your organization has no models yet.',
   }[phase]
 
-  const bar1 = phase === 'downloading' || phase === 'stalled' ? `${downloadProgress}%` : '100%'
+  const bar1 = phase === 'downloading' || phase === 'stalled' ? `${downloadProgress}%` : phase === 'no-models' ? '0%' : '100%'
   const bar1Color = phase === 'stalled' ? 'var(--n-mute)' : phase === 'downloading' ? 'var(--n-accent)' : 'var(--n-accent-700)'
   const onStep1 = phase === 'downloading' || phase === 'stalled'
   const onStep2 = phase === 'loading'
@@ -74,7 +76,7 @@ export function NodeStatusWidget({ node }: { node: NodeState }) {
             </span>
           </div>
 
-          {!ready && (
+          {!ready && phase !== 'no-models' && (
             <div className="mt-1.5 flex justify-between text-[11px] font-semibold uppercase leading-none tracking-[0.05em]">
               <span style={{ color: onStep1 ? 'var(--n-accent-300)' : 'var(--n-text-4)' }}>
                 {onStep1 ? '1 · Download' : '1 · Done'}

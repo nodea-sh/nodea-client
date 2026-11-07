@@ -284,9 +284,9 @@ async fn login_oauth(
 
 /// Sign up a new user with email and password.
 ///
-/// No session is created or stored here - the backend only creates an
-/// unconfirmed account and emails our own verification link. The caller
-/// must log in separately once that link is clicked.
+/// No session is created or stored here - the backend creates the account
+/// and emails our own verification link. The caller logs in next with the
+/// same credentials; it does not have to wait for the link.
 #[tauri::command]
 async fn sign_up(email: String, password: String) -> Result<String, String> {
     auth::sign_up_email_password(email, password)
@@ -717,6 +717,25 @@ async fn get_model_cache_info(state: tauri::State<'_, AppState>) -> Result<Model
         path: dir.to_string_lossy().to_string(),
         size_bytes: dir_size_bytes(dir),
     })
+}
+
+#[derive(serde::Serialize)]
+struct SystemMemory {
+    total_memory_mb: u32,
+    available_memory_mb: u32,
+    accelerator_memory_mb: Option<u32>,
+}
+
+/// The same memory figures this node reports in its DeviceIdentity - the app
+/// uses them only to suggest models that fit when an admin adds one.
+#[tauri::command]
+fn get_system_memory() -> SystemMemory {
+    let m = ai4all_tauri::memory::probe();
+    SystemMemory {
+        total_memory_mb: m.total_memory_mb,
+        available_memory_mb: m.available_memory_mb,
+        accelerator_memory_mb: m.accelerator_memory_mb,
+    }
 }
 
 /// Open the model cache folder in the system file manager. The path comes
@@ -1286,6 +1305,7 @@ fn main() {
             is_model_loaded,
             get_inference_backend,
             get_model_cache_info,
+            get_system_memory,
             reveal_model_cache,
             load_model_auto,
             get_all_status,

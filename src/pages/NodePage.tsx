@@ -1,15 +1,22 @@
 import { useEffect, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
-import { CircleNotch, DownloadSimple, CheckCircle, CircleDashed, Broadcast, WifiSlash, Prohibit } from '@phosphor-icons/react'
+import { CircleNotch, DownloadSimple, CheckCircle, CircleDashed, Broadcast, WifiSlash, Prohibit, Cube } from '@phosphor-icons/react'
 import { useAuth } from '@/contexts/AuthContext'
 import { apiClient, type TokenStatsResponse } from '@/lib/api'
 import { ThroughputChart, type ChartRange } from '@/components/ThroughputChart'
-import type { NodeState } from '@/hooks/useNodePhase'
+import { announceModelsChanged, type NodeState } from '@/hooks/useNodePhase'
+import { AddModelsDialog } from '@/components/AddModelsDialog'
+import { SetupChecklist } from '@/components/SetupChecklist'
+import { PrimaryButton } from '@/components/nocturne'
 import { downloadSummary, formatDuration } from '@/lib/utils'
 
 export function NodePage() {
   const node = useOutletContext<NodeState>()
-  const { organization, accountInactive } = useAuth()
+  const { organization, accountInactive, isAdmin } = useAuth()
+  const [addingModel, setAddingModel] = useState(false)
+  // While setting up, the download/load progress lives in the sidebar
+  // widget only; the checklist takes this space.
+  const [settingUp, setSettingUp] = useState(false)
   const [range, setRange] = useState<ChartRange>('1d')
   const [chartStats, setChartStats] = useState<TokenStatsResponse[]>([])
   const [dayStats, setDayStats] = useState<TokenStatsResponse[]>([])
@@ -48,7 +55,7 @@ export function NodePage() {
       kicker: 'Stage 1 of 2 · Downloading',
       KickerIcon: DownloadSimple,
       spin: false,
-      title: 'Fetching the model for this Mac.',
+      title: 'Fetching the model for this device.',
       body: `${node.modelName ?? 'The model'}, chosen for this hardware. It downloads once and stays cached.`,
       ringPct: node.downloadProgress,
       ringLabel: `${node.downloadProgress}%`,
@@ -71,7 +78,7 @@ export function NodePage() {
       KickerIcon: CircleNotch,
       spin: true,
       title: 'Reaching the coordinator.',
-      body: 'Nodea is opening a connection for this Mac.',
+      body: 'Nodea is opening a connection for this device.',
       ringPct: 0,
       ringLabel: '—',
       ringCaption: 'connecting',
@@ -93,7 +100,7 @@ export function NodePage() {
       KickerIcon: WifiSlash,
       spin: false,
       title: "Can't reach the coordinator.",
-      body: 'Nodea keeps retrying on its own. The model stays on this Mac, so sharing resumes as soon as the connection does.',
+      body: 'Nodea keeps retrying on its own. The model stays on this device, so sharing resumes as soon as the connection does.',
       ringPct: 0,
       ringLabel: '—',
       ringCaption: 'offline',
@@ -105,7 +112,7 @@ export function NodePage() {
           KickerIcon: Prohibit,
           spin: false,
           title: `An admin deactivated your account${organization?.name ? ` in ${organization.name}` : ''}.`,
-          body: 'This Mac stopped sharing compute. Ask an admin to reactivate you, or leave the organization in Settings.',
+          body: 'This device stopped sharing compute. Ask an admin to reactivate you, or leave the organization in Settings.',
           ringPct: 0,
           ringLabel: '—',
           ringCaption: 'not sharing',
@@ -116,7 +123,7 @@ export function NodePage() {
           KickerIcon: Prohibit,
           spin: false,
           title: 'The server refused this account.',
-          body: node.message ? `${node.message}. This Mac stopped sharing compute.` : 'This Mac stopped sharing compute.',
+          body: node.message ? `${node.message}. This device stopped sharing compute.` : 'This device stopped sharing compute.',
           ringPct: 0,
           ringLabel: '—',
           ringCaption: 'not sharing',
@@ -126,7 +133,7 @@ export function NodePage() {
       kicker: null,
       KickerIcon: Broadcast,
       spin: false,
-      title: 'This Mac is serving the network.',
+      title: 'This device is serving the network.',
       body: node.modelName
         ? node.loadMs !== undefined
           ? `${node.modelName}, loaded in ${formatDuration(node.loadMs)}.`
@@ -138,11 +145,24 @@ export function NodePage() {
       ringCaption: 'serving',
       ringColor: 'var(--n-accent)',
     },
+    'no-models': {
+      kicker: 'Waiting for a model',
+      KickerIcon: Cube,
+      spin: false,
+      title: isAdmin ? 'Add a model to start serving.' : 'Waiting for an admin to add a model.',
+      body: isAdmin
+        ? `${organization?.name ?? 'Your organization'} has no models yet, so this device has nothing to serve. Pick one and it starts downloading on its own.`
+        : 'Your organization has no models yet. This device starts serving on its own once an admin adds one.',
+      ringPct: 0,
+      ringLabel: '—',
+      ringCaption: 'no model',
+      ringColor: 'var(--n-mute-2)',
+    },
     paused: {
       kicker: null,
       KickerIcon: Broadcast,
       spin: false,
-      title: 'Paused. This Mac is idle.',
+      title: 'Paused. This device is idle.',
       body: node.modelName
         ? `${node.modelName} is still in memory. Turn sharing back on and it picks up within seconds.`
         : '',
@@ -169,17 +189,30 @@ export function NodePage() {
           {hero.body && (
             <p className="mt-2.5 max-w-[400px] text-[15px] leading-[1.6] text-[var(--n-text-4)]">{hero.body}</p>
           )}
+          {node.phase === 'no-models' && isAdmin && (
+            <div className="mt-5">
+              <PrimaryButton onClick={() => setAddingModel(true)}>Add a model</PrimaryButton>
+            </div>
+          )}
         </div>
         <CapacityRing pct={hero.ringPct} label={hero.ringLabel} caption={hero.ringCaption} color={hero.ringColor} />
       </div>
 
+      <SetupChecklist node={node} onVisibleChange={setSettingUp} />
+
       {/* Connecting means nothing is assigned yet: no model, so no checklist for one. */}
-      {gettingReady ? (node.phase !== 'connecting' && <ReadyChecklist node={node} />) : (
+      {node.phase === 'no-models' ? null : gettingReady ? (settingUp || node.phase === 'connecting' ? null : <ReadyChecklist node={node} />) : (
         <>
           <StatStrip stats={dayStats} />
           <ThroughputChart stats={chartStats} range={range} onRangeChange={setRange} />
         </>
       )}
+
+      <AddModelsDialog open={addingModel} onOpenChange={setAddingModel}
+                       onAdded={() => {
+                         setAddingModel(false)
+                         announceModelsChanged()
+                       }} />
     </div>
   )
 }
