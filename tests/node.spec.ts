@@ -7,7 +7,7 @@ import { test, expect, type Page } from '@playwright/test'
  * timed simulation, and demo mode auto-authenticates (AuthContext).
  */
 async function gotoPhase(page: Page, phase: string) {
-  await page.goto(`/node?demo=true&phase=${phase}`)
+  await page.goto(`/node?demo=true&phase=${phase}&os=macos`)
   await page.waitForLoadState('domcontentloaded')
 }
 

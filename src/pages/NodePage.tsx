@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { apiClient, type TokenStatsResponse } from '@/lib/api'
 import { ThroughputChart, type ChartRange } from '@/components/ThroughputChart'
 import type { NodeState } from '@/hooks/useNodePhase'
+import { thisDevice, thisDeviceCapitalized } from '@/lib/device'
 
 export function NodePage() {
   const node = useOutletContext<NodeState>()
@@ -47,7 +48,7 @@ export function NodePage() {
       kicker: 'Stage 1 of 2 · Downloading',
       KickerIcon: DownloadSimple,
       spin: false,
-      title: 'Fetching the model for this Mac.',
+      title: `Fetching the model for ${thisDevice()}.`,
       body: `${node.modelName}, chosen for this hardware. It downloads once and stays cached.`,
       ringPct: node.downloadProgress,
       ringLabel: `${node.downloadProgress}%`,
@@ -70,7 +71,7 @@ export function NodePage() {
       KickerIcon: CircleNotch,
       spin: true,
       title: 'Reaching the coordinator.',
-      body: 'Nodea is opening a connection for this Mac.',
+      body: `Nodea is opening a connection for ${thisDevice()}.`,
       ringPct: 0,
       ringLabel: '—',
       ringCaption: 'connecting',
@@ -92,7 +93,7 @@ export function NodePage() {
       KickerIcon: WifiSlash,
       spin: false,
       title: "Can't reach the coordinator.",
-      body: 'Nodea keeps retrying on its own. The model stays on this Mac, so sharing resumes as soon as the connection does.',
+      body: `Nodea keeps retrying on its own. The model stays on ${thisDevice()}, so sharing resumes as soon as the connection does.`,
       ringPct: 0,
       ringLabel: '—',
       ringCaption: 'offline',
@@ -104,7 +105,7 @@ export function NodePage() {
           KickerIcon: Prohibit,
           spin: false,
           title: `An admin deactivated your account${organization?.name ? ` in ${organization.name}` : ''}.`,
-          body: 'This Mac stopped sharing compute. Ask an admin to reactivate you, or leave the organization in Settings.',
+          body: `${thisDeviceCapitalized()} stopped sharing compute. Ask an admin to reactivate you, or leave the organization in Settings.`,
           ringPct: 0,
           ringLabel: '—',
           ringCaption: 'not sharing',
@@ -115,7 +116,7 @@ export function NodePage() {
           KickerIcon: Prohibit,
           spin: false,
           title: 'The server refused this account.',
-          body: node.message ? `${node.message}. This Mac stopped sharing compute.` : 'This Mac stopped sharing compute.',
+          body: node.message ? `${node.message}. ${thisDeviceCapitalized()} stopped sharing compute.` : `${thisDeviceCapitalized()} stopped sharing compute.`,
           ringPct: 0,
           ringLabel: '—',
           ringCaption: 'not sharing',
@@ -125,7 +126,7 @@ export function NodePage() {
       kicker: null,
       KickerIcon: Broadcast,
       spin: false,
-      title: 'This Mac is serving the network.',
+      title: `${thisDeviceCapitalized()} is serving the network.`,
       body: '',
       ringPct: 71,
       ringLabel: '71%',
@@ -136,7 +137,7 @@ export function NodePage() {
       kicker: null,
       KickerIcon: Broadcast,
       spin: false,
-      title: 'Paused. This Mac is idle.',
+      title: `Paused. ${thisDeviceCapitalized()} is idle.`,
       body: `${node.modelName} is still in memory. Turn sharing back on and it picks up within seconds.`,
       ringPct: 0,
       ringLabel: '0%',

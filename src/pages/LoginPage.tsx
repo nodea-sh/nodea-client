@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { apiClient } from '@/lib/api'
+import { thisDevice, thisDeviceCapitalized } from '@/lib/device'
 
 function isEmailNotConfirmedError(message: string): boolean {
   return message.toLowerCase().includes('email not confirmed')
@@ -124,13 +125,13 @@ export function LoginPage() {
       </h2>
       {searchParams.get('account') === 'deleted' && (
         <p role="status" className="mb-3 max-w-[360px] text-[14.5px] leading-[1.5] text-[var(--n-text-2)]">
-          This account was deleted. This Mac stopped sharing compute.
+          This account was deleted. {thisDeviceCapitalized()} stopped sharing compute.
         </p>
       )}
       <p className="mb-[22px] max-w-[360px] text-[14.5px] leading-[1.5] text-[var(--n-text-3)]">
         {isInvitedSignup
           ? <>Joining <strong className="text-[var(--n-text-2)]">{invitationDetails?.organizationName}</strong> as {invitationDetails?.role}.</>
-          : 'Sign in and this Mac joins the network.'}
+          : `Sign in and ${thisDevice()} joins the network.`}
       </p>
 
       <form onSubmit={submit} className="flex max-w-[360px] flex-col gap-2">

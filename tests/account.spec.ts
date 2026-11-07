@@ -6,7 +6,7 @@ import { test, expect, type Page } from '@playwright/test'
  * account (see src/lib/mockApi.ts), with no backend or login.
  */
 async function gotoSettings(page: Page, account?: string) {
-  await page.goto(`/settings?demo=true${account ? `&account=${account}` : ''}`)
+  await page.goto(`/settings?demo=true&os=macos${account ? `&account=${account}` : ''}`)
   await expect(page.getByRole('heading', { name: 'Account' })).toBeVisible()
 }
 
