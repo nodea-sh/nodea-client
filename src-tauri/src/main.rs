@@ -284,9 +284,9 @@ async fn login_oauth(
 
 /// Sign up a new user with email and password.
 ///
-/// No session is created or stored here - the backend only creates an
-/// unconfirmed account and emails our own verification link. The caller
-/// must log in separately once that link is clicked.
+/// No session is created or stored here - the backend creates the account
+/// and emails our own verification link. The caller logs in next with the
+/// same credentials; it does not have to wait for the link.
 #[tauri::command]
 async fn sign_up(email: String, password: String) -> Result<String, String> {
     auth::sign_up_email_password(email, password)

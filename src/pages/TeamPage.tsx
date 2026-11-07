@@ -56,7 +56,7 @@ function Notice({ children, error }: { children: React.ReactNode; error?: boolea
 }
 
 export function TeamPage() {
-  const { isAdmin, user } = useAuth()
+  const { isAdmin, emailConfirmed, user } = useAuth()
   const [members, setMembers] = useState<OrganizationMember[] | null>(null)
   const [invitations, setInvitations] = useState<UserInvitation[] | null>(null)
   const [organization, setOrganization] = useState<Organization | null>(null)
@@ -172,18 +172,24 @@ export function TeamPage() {
           <p className="mt-1 text-[14px] leading-[1.5] text-[var(--n-text-4)]">
             They receive an email with a link to set a password and join this organization.
           </p>
+          {!emailConfirmed && (
+            <p data-testid="confirm-email-note" className="mt-2 text-[14px] leading-[1.5] text-[var(--n-text-3)]">
+              Confirm your email to invite teammates, change roles or revoke invitations. Use the link
+              we sent to {user?.email ?? 'your inbox'}.
+            </p>
+          )}
           <form onSubmit={invite} className="mt-3 flex flex-wrap items-start gap-2">
             <div className="min-w-[16rem] flex-1">
               <Input type="email" required placeholder="teammate@company.com" value={inviteEmail}
-                     aria-label="Email address" disabled={inviting}
+                     aria-label="Email address" disabled={inviting || !emailConfirmed}
                      onChange={(e) => setInviteEmail(e.target.value)} />
             </div>
-            <select value={inviteRole} disabled={inviting} className={selectClass} aria-label="Role"
+            <select value={inviteRole} disabled={inviting || !emailConfirmed} className={selectClass} aria-label="Role"
                     onChange={(e) => setInviteRole(e.target.value as Role)}>
               <option value="standard">Member</option>
               <option value="admin">Admin</option>
             </select>
-            <PrimaryButton type="submit" disabled={inviting}>{inviting ? 'Sending…' : 'Send invite'}</PrimaryButton>
+            <PrimaryButton type="submit" disabled={inviting || !emailConfirmed}>{inviting ? 'Sending…' : 'Send invite'}</PrimaryButton>
           </form>
           {inviteNotice && <Notice error={inviteNotice.error}>{inviteNotice.text}</Notice>}
         </section>
@@ -219,7 +225,7 @@ export function TeamPage() {
               <span className="text-[14px] text-[var(--n-text-3)]">{formatDate(m.created_at)}</span>
               <span className="flex w-[70px] justify-end">
                 {isAdmin && m.is_active && !isSelf(m) && (
-                  <GhostButton aria-label={`Edit role for ${memberName(m)}`}
+                  <GhostButton aria-label={`Edit role for ${memberName(m)}`} disabled={!emailConfirmed}
                                onClick={() => { setRoleNotice(null); setEditing(m) }}>
                     Edit
                   </GhostButton>
@@ -245,7 +251,8 @@ export function TeamPage() {
                   <span className="truncate text-[15px] font-semibold text-[var(--n-text)]">{inv.email}</span>
                   <span><RoleBadge role={inv.role} /></span>
                   <span className="text-[14px] text-[var(--n-text-3)]">Expires {formatDate(inv.expires_at)}</span>
-                  <GhostButton aria-label={`Revoke invitation to ${inv.email}`} onClick={() => void revoke(inv)}>Revoke</GhostButton>
+                  <GhostButton aria-label={`Revoke invitation to ${inv.email}`} disabled={!emailConfirmed}
+                               onClick={() => void revoke(inv)}>Revoke</GhostButton>
                 </div>
               ))}
             </div>

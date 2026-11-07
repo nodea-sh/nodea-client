@@ -24,6 +24,9 @@ interface AuthContextType {
   organizationLoadError: string | null
   isAuthenticated: boolean
   isAdmin: boolean
+  /** Whether the user has confirmed their email. Everything works before
+   * that except inviting people and changing members. */
+  emailConfirmed: boolean
   isLoading: boolean
   login: (email: string, password: string) => Promise<void>
   signup: (email: string, password: string) => Promise<void>
@@ -394,15 +397,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      // The backend creates an unconfirmed Supabase account and emails our
-      // own verification link - there is no session to store here. Login
-      // stays gated until that link is clicked (see LoginPage's handling
-      // of Supabase's "Email not confirmed" error).
+      // The backend creates the account and emails our own confirmation
+      // link, but returns no session. The account can be used before the
+      // link is clicked (only inviting people and changing members wait for
+      // it), so sign in straight away through the normal login path.
       if (isTauriApp()) {
         await invoke<string>('sign_up', { email, password })
       } else {
         await apiClient.signup(email, password)
       }
+
+      await login(email, password)
 
       return Promise.resolve()
     } catch (error) {
@@ -516,6 +521,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // at sign-in, so it still says "standard" for someone who has just
         // created an organization (and so become its admin).
         isAdmin: (organization?.current_user_role ?? user?.role) === 'admin',
+        emailConfirmed: organization?.email_confirmed ?? true,
         isLoading,
         login,
         signup,
