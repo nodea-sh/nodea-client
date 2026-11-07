@@ -15,6 +15,14 @@ export interface ModelStatus {
   model_name?: string
   progress?: number
   message?: string
+  /** Downloading: 0 until the response gives a size */
+  downloaded_bytes?: number
+  total_bytes?: number
+  bytes_per_sec?: number
+  /** Loading: Unix ms */
+  started_at_ms?: number
+  /** Ready: null when nothing was loaded (already resident) */
+  load_ms?: number | null
 }
 interface StatusSnapshot {
   connection: ConnectionStatus
@@ -41,9 +49,20 @@ export type NodePhase =
 
 export interface NodeState {
   phase: NodePhase
-  modelName: string
+  /** The model the backend assigned; undefined until a LoadModel names one */
+  modelName?: string
   /** 0-100, only meaningful while downloading */
   downloadProgress: number
+  /** Downloading only; 0 until known */
+  downloadedBytes: number
+  totalBytes: number
+  bytesPerSec: number
+  /** Whole seconds since loading started; undefined unless loading */
+  loadElapsedS?: number
+  /** How long the last load took; undefined when not timed */
+  loadMs?: number
+  /** What llama.cpp runs on: 'Metal' | 'Vulkan' | 'CPU'; undefined until known */
+  backend?: string
   message?: string
   sharing: boolean
   setSharing: (on: boolean) => void
@@ -93,6 +112,8 @@ export function useNodePhase(): NodeState {
   const enabledModel = orgModels?.find((m) => m.enabled) ?? null
   const orgHasModels = orgModels === null ? null : enabledModel !== null
   const [snapshot, setSnapshot] = useState<StatusSnapshot | null>(null)
+  const [backend, setBackend] = useState<string>()
+  const [now, setNow] = useState(() => Date.now())
   const [sharing, setSharingState] = useState(() => {
     if (demo) {
       // ?phase=paused|serving (see mockTauri.ts) pins sharing before the
@@ -115,6 +136,12 @@ export function useNodePhase(): NodeState {
       .then((s) => {
         if (cancelled) return
         setSnapshot(s)
+      })
+      .catch(console.error)
+
+    inv<string>('get_inference_backend')
+      .then((b) => {
+        if (!cancelled) setBackend(b)
       })
       .catch(console.error)
 
@@ -182,10 +209,26 @@ export function useNodePhase(): NodeState {
 
   const phase = derivePhase(connection, model, sharing, accountInactive, orgHasModels)
 
+  // Tick once a second while loading, for the elapsed counter.
+  const loadStartedAt = model?.type === 'Loading' ? model.started_at_ms : undefined
+  useEffect(() => {
+    if (loadStartedAt === undefined) return
+    setNow(Date.now())
+    const id = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [loadStartedAt])
+
   return {
     phase,
-    modelName: model?.model_name ?? 'No model yet',
+    modelName: model?.model_name,
     downloadProgress: Math.round(model?.progress ?? 0),
+    downloadedBytes: model?.downloaded_bytes ?? 0,
+    totalBytes: model?.total_bytes ?? 0,
+    bytesPerSec: model?.bytes_per_sec ?? 0,
+    loadElapsedS:
+      loadStartedAt === undefined ? undefined : Math.max(0, Math.floor((now - loadStartedAt) / 1000)),
+    loadMs: model?.load_ms ?? undefined,
+    backend,
     // The message that explains the phase: the model's for a model failure,
     // the connection's for an offline or refused node.
     message: phase === 'stalled' ? model?.message : connection?.message ?? model?.message,

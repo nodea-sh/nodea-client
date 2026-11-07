@@ -8,6 +8,7 @@ import { announceModelsChanged, type NodeState } from '@/hooks/useNodePhase'
 import { AddModelsDialog } from '@/components/AddModelsDialog'
 import { SetupChecklist } from '@/components/SetupChecklist'
 import { PrimaryButton } from '@/components/nocturne'
+import { downloadSummary, formatDuration } from '@/lib/utils'
 
 export function NodePage() {
   const node = useOutletContext<NodeState>()
@@ -55,7 +56,7 @@ export function NodePage() {
       KickerIcon: DownloadSimple,
       spin: false,
       title: 'Fetching the model for this device.',
-      body: `${node.modelName}, chosen for this hardware. It downloads once and stays cached.`,
+      body: `${node.modelName ?? 'The model'}, chosen for this hardware. It downloads once and stays cached.`,
       ringPct: node.downloadProgress,
       ringLabel: `${node.downloadProgress}%`,
       ringCaption: 'downloaded',
@@ -66,10 +67,10 @@ export function NodePage() {
       KickerIcon: CircleNotch,
       spin: true,
       title: 'Loading the model into memory.',
-      body: 'Weights are on disk. Nodea is mapping them onto the GPU — this takes about twenty seconds and happens once per launch.',
+      body: 'Weights are on disk. Nodea is loading them into memory, once per launch.',
       ringPct: 100,
-      ringLabel: '—',
-      ringCaption: 'warming up',
+      ringLabel: node.loadElapsedS === undefined ? '—' : `${node.loadElapsedS}s`,
+      ringCaption: 'elapsed',
       ringColor: 'var(--n-accent-700)',
     },
     connecting: {
@@ -88,7 +89,7 @@ export function NodePage() {
       KickerIcon: DownloadSimple,
       spin: false,
       title: 'The download stopped.',
-      body: node.message ?? 'Nodea picks up where it left off when you retry.',
+      body: node.message ?? 'Retry to start the download again.',
       ringPct: node.downloadProgress,
       ringLabel: `${node.downloadProgress}%`,
       ringCaption: 'downloaded',
@@ -133,10 +134,15 @@ export function NodePage() {
       KickerIcon: Broadcast,
       spin: false,
       title: 'This device is serving the network.',
-      body: '',
-      ringPct: 71,
-      ringLabel: '71%',
-      ringCaption: 'capacity used',
+      body: node.modelName
+        ? node.loadMs !== undefined
+          ? `${node.modelName}, loaded in ${formatDuration(node.loadMs)}.`
+          : `${node.modelName} is loaded.`
+        : '',
+      // No capacity metric exists yet, so the ring shows state, not a number.
+      ringPct: 100,
+      ringLabel: 'Live',
+      ringCaption: 'serving',
       ringColor: 'var(--n-accent)',
     },
     'no-models': {
@@ -157,10 +163,12 @@ export function NodePage() {
       KickerIcon: Broadcast,
       spin: false,
       title: 'Paused. This device is idle.',
-      body: `${node.modelName} is still in memory. Turn sharing back on and it picks up within seconds.`,
+      body: node.modelName
+        ? `${node.modelName} is still in memory. Turn sharing back on and it picks up within seconds.`
+        : '',
       ringPct: 0,
-      ringLabel: '0%',
-      ringCaption: 'capacity used',
+      ringLabel: '—',
+      ringCaption: 'paused',
       ringColor: 'var(--n-mute-2)',
     },
   }[node.phase]
@@ -192,7 +200,8 @@ export function NodePage() {
 
       <SetupChecklist node={node} onVisibleChange={setSettingUp} />
 
-      {node.phase === 'no-models' ? null : gettingReady ? (settingUp ? null : <ReadyChecklist node={node} />) : (
+      {/* Connecting means nothing is assigned yet: no model, so no checklist for one. */}
+      {node.phase === 'no-models' ? null : gettingReady ? (settingUp || node.phase === 'connecting' ? null : <ReadyChecklist node={node} />) : (
         <>
           <StatStrip stats={dayStats} />
           <ThroughputChart stats={chartStats} range={range} onRangeChange={setRange} />
@@ -247,21 +256,23 @@ function StatStrip({ stats }: { stats: TokenStatsResponse[] }) {
 }
 
 function ReadyChecklist({ node }: { node: NodeState }) {
-  const gb = ((node.downloadProgress / 100) * 4.9).toFixed(1)
   const dl = node.phase === 'downloading' || node.phase === 'stalled'
   const ld = node.phase === 'loading'
+  const onBackend = node.backend ? `On ${node.backend}` : 'Into memory'
 
   const rows = [
     {
       title: 'Fetching weights',
-      sub: dl ? `${gb} of 4.9 GB at 24 MB/s` : '4.9 GB cached locally',
+      sub: dl
+        ? downloadSummary(node.downloadedBytes, node.totalBytes, node.bytesPerSec, ' at ') ?? 'Starting download…'
+        : 'On disk',
       value: dl ? 'In progress' : 'Done',
       state: dl ? 'busy' : 'done',
     },
     {
       title: 'Loading into memory',
-      sub: ld ? 'GPU memory' : dl ? 'Waiting for the download' : 'GPU memory',
-      value: ld ? '~20s' : dl ? '—' : '18s',
+      sub: dl ? 'Waiting for the download' : onBackend,
+      value: ld && node.loadElapsedS !== undefined ? `${node.loadElapsedS}s` : '—',
       state: ld ? 'busy' : dl ? 'idle' : 'done',
     },
     {
