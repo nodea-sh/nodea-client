@@ -260,15 +260,33 @@ struct PkceExchangeRequest<'a> {
     code_verifier: &'a str,
 }
 
-/// Authenticate with an OAuth provider (Google, GitHub, etc.).
+/// The error a sign-in ends with when the user cancels it, or starts another
+/// one that replaces it.
+pub const OAUTH_CANCELLED: &str = "Sign-in was cancelled";
+
+/// The error a sign-in ends with when no callback arrives in time.
+pub const OAUTH_TIMED_OUT: &str = "Timed out waiting for the browser to complete sign-in";
+
+/// The receiving half of the attempt `begin_oauth` registered, kept until
+/// `finish_oauth` collects it. The PKCE verifier lives here, in this process
+/// only, which is also why sign-in cannot be finished from another machine.
+struct WaitingAttempt {
+    id: u64,
+    verifier: String,
+    rx: oneshot::Receiver<String>,
+}
+
+fn waiting_attempt() -> &'static Mutex<Option<WaitingAttempt>> {
+    static WAITING: OnceLock<Mutex<Option<WaitingAttempt>>> = OnceLock::new();
+    WAITING.get_or_init(|| Mutex::new(None))
+}
+
+/// Registers a new OAuth sign-in and returns the URL the browser must visit.
 ///
-/// The browser does the talking; Supabase redirects to the backend's hand-off
-/// page, which forwards to `OAUTH_REDIRECT_URI`, and the OS delivers that back
-/// to this process. Using the deep link rather than a loopback listener avoids
-/// binding a port the backend may already hold, and avoids the fragment
-/// problem: a URL fragment is never sent to a server, so a local HTTP listener
-/// cannot read the one Supabase returns.
-pub async fn authenticate_oauth(provider: &str) -> Result<AuthResult, Box<dyn std::error::Error>> {
+/// A previous attempt that is still waiting is replaced, and resolves as
+/// cancelled. Registered before the browser opens, so a callback that arrives
+/// while the caller is still starting up is not dropped.
+pub fn begin_oauth(provider: &str) -> String {
     let verifier = generate_code_verifier();
     let auth_url = build_authorize_url(
         SUPABASE_URL,
@@ -277,28 +295,86 @@ pub async fn authenticate_oauth(provider: &str) -> Result<AuthResult, Box<dyn st
         &code_challenge(&verifier),
     );
 
-    // Registered before the browser opens, so a callback that arrives while
-    // this thread is still starting up is not dropped.
-    let attempt = next_attempt_id();
+    let id = next_attempt_id();
     let (tx, rx) = oneshot::channel();
     *pending_callback()
         .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some((attempt, tx));
+        .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some((id, tx));
+    *waiting_attempt()
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner()) =
+        Some(WaitingAttempt { id, verifier, rx });
+
+    auth_url
+}
+
+/// Starts an OAuth sign-in (Google, GitHub, etc.) in the browser and returns
+/// the URL it was sent to.
+///
+/// The URL goes back to the sign-in screen because a successful `open` proves
+/// little: on Linux it only starts a launcher (xdg-open, exo-open), which can
+/// fail afterwards in a dialog of its own when there is no default browser.
+/// The screen offers the link to copy, so the attempt is kept alive even when
+/// `open` itself fails.
+///
+/// The browser does the talking; Supabase redirects to the backend's hand-off
+/// page, which forwards to `OAUTH_REDIRECT_URI`, and the OS delivers that back
+/// to this process. Using the deep link rather than a loopback listener avoids
+/// binding a port the backend may already hold, and avoids the fragment
+/// problem: a URL fragment is never sent to a server, so a local HTTP listener
+/// cannot read the one Supabase returns.
+pub fn start_oauth(provider: &str) -> String {
+    let auth_url = begin_oauth(provider);
 
     println!("Opening browser for {} authentication...", provider);
     if let Err(e) = open::that(&auth_url) {
-        abandon_attempt(attempt);
-        return Err(format!("Could not open a browser for sign-in: {}", e).into());
+        eprintln!("Could not open a browser for sign-in: {}", e);
     }
 
-    let callback_url = match timeout(OAUTH_TIMEOUT, rx).await {
-        Ok(Ok(url)) => url,
-        Ok(Err(_)) => return Err("Sign-in was superseded by another attempt".into()),
+    auth_url
+}
+
+/// Abandons the sign-in in progress, if any. A `finish_oauth` waiting on it
+/// returns `OAUTH_CANCELLED`, and a late callback is no longer accepted.
+pub fn cancel_oauth() {
+    // Dropping the sender is what wakes the waiting receiver.
+    drop(
+        pending_callback()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .take(),
+    );
+    drop(
+        waiting_attempt()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .take(),
+    );
+}
+
+/// Waits up to `wait` for the callback of the attempt `begin_oauth` started,
+/// and returns it with that attempt's PKCE verifier.
+pub async fn await_oauth_callback(wait: Duration) -> Result<(String, String), String> {
+    let WaitingAttempt { id, verifier, rx } = waiting_attempt()
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .take()
+        .ok_or_else(|| "No sign-in is in progress".to_string())?;
+
+    match timeout(wait, rx).await {
+        Ok(Ok(url)) => Ok((url, verifier)),
+        // The sender was dropped: cancelled, or replaced by a newer attempt.
+        Ok(Err(_)) => Err(OAUTH_CANCELLED.to_string()),
         Err(_) => {
-            abandon_attempt(attempt);
-            return Err("Timed out waiting for the browser to complete sign-in".into());
+            abandon_attempt(id);
+            Err(OAUTH_TIMED_OUT.to_string())
         }
-    };
+    }
+}
+
+/// Finishes the sign-in `start_oauth` began, once the browser hands back.
+pub async fn finish_oauth() -> Result<AuthResult, Box<dyn std::error::Error>> {
+    let (callback_url, verifier) = await_oauth_callback(OAUTH_TIMEOUT).await?;
 
     match parse_callback(&callback_url)? {
         Callback::Code(code) => exchange_code_for_session(&code, &verifier).await,

@@ -41,6 +41,7 @@ Playwright starts the dev server itself (`webServer` in
 | `node.spec.ts` | Node page and sidebar status widget across every lifecycle phase, and the sharing toggle |
 | `fleet.spec.ts` | Fleet page listing and device detail |
 | `login.spec.ts` | Login form rendering, the failure path, a successful sign-in redirect, the signup link and the Google button |
+| `google-signin.spec.ts` | The desktop Google sign-in while it waits for the browser: the copyable sign-in link, "Still waiting", and Cancel (Tauri host faked with `__TAURI_INTERNALS__`) |
 | `settings.spec.ts` | Settings rows, the absence of controls with no backend support, app version and sign out |
 | `updates.spec.ts` | The sidebar's "Update ready · Restart" item (pinned with `?update=`), dismissing it, the restart message, "Check for updates" and the once-only "Updated to" toast |
 

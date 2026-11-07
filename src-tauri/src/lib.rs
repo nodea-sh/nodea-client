@@ -5,6 +5,7 @@
 // meant no `tests/*.rs` target could reach them - and, because `main.rs` also
 // declared its own `mod model_manager`, that file was compiled twice into two
 // separate crates and its unit tests ran twice.
+pub mod auth;
 pub mod catalogue;
 pub mod devlog;
 pub mod generations;
