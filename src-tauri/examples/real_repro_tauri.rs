@@ -5,13 +5,10 @@
 // handle_chat_completion does per incoming request - inside a real Tauri
 // window/event loop.
 //
-// This must run inside a real windowed process, not bare `cargo test`/`cargo
-// run`: on macOS, `MTLCreateSystemDefaultDevice` (how candle-core picks a
-// Metal device) is refused for any non-interactive process, so a bare
-// binary panics on the very first `Device::new_metal(0)` call before the
-// model even starts loading. See the comment on
-// test_generate_streaming_survives_multiple_sequential_prompts in
-// tests/model_manager_tests.rs for the full explanation.
+// It was written for the old engine, whose Metal device could only be
+// created from a windowed process. llama.cpp's Metal backend also runs from a
+// plain `cargo run`, so for most debugging `nodea-infer` (crates/nodea-inference)
+// is quicker; this stays for reproducing inside the real Tauri event loop.
 //
 // Usage:
 //   GGUF_MODEL_PATH=/path/to/model.gguf cargo run --example real_repro_tauri

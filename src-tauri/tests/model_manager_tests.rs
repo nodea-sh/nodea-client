@@ -108,30 +108,12 @@ mod tests {
     // generate_streaming - the actual token-yielding component - across
     // several sequential prompts on the same loaded model. Catches
     // regressions where a generation call silently produces zero tokens/no
-    // terminal signal, or - the actual root cause found in production -
-    // cross-request KV-cache corruption from mistralrs's prefix cache, which
-    // manifests as unrelated prompts starting with identical garbled tokens.
-    //
-    // IMPORTANT - macOS-only limitation: `MTLCreateSystemDefaultDevice` (how
-    // candle-core picks a Metal device) is refused by macOS for any
-    // non-interactive process - confirmed via `/usr/bin/log show`, which
-    // reports "(Metal) Use of MTLCreateSystemDefaultDevice is not supported
-    // for non-interactive (commandline or daemon) apps" - so a bare
-    // `cargo test`/`cargo run` binary cannot create a Metal device at all: it
-    // panics inside candle-core (`swap_remove index (is 0) should be < len
-    // (is 0)`, since `Device::all()` comes back empty) on the very first
-    // `Device::new_metal(0)` call, before this test's model even starts
-    // loading. This previously misdiagnosed a *different* small model
-    // (SmolLM2-135M) as having a GGUF-parsing bug - it was this same
-    // restriction; SmolLM2 loads and runs fine once you're in a real
-    // interactive process. To actually run this test on macOS, run it from
-    // inside a genuine windowed process instead of bare `cargo test`:
-    // `examples/real_repro_tauri.rs` does exactly that (a minimal Tauri
-    // window + this same load/generate loop) and is the tool to reach for
-    // when debugging this class of bug:
-    //   GGUF_MODEL_PATH=/path/to/model.gguf cargo run --example real_repro_tauri
-    // On Linux/CUDA this restriction doesn't apply and `cargo test --ignored`
-    // should work directly.
+    // terminal signal, or cross-request KV-cache state bleeding into an
+    // unrelated prompt (the production bug the old engine's prefix cache
+    // caused), which shows up as unrelated prompts starting with identical
+    // garbled tokens. Every generation now gets a fresh context, so this is
+    // the regression guard for that design. The inference crate's contract
+    // suite (crates/nodea-inference/tests) covers the rest with pinned models.
     //
     // Run with: cargo test -- --ignored test_generate_streaming_survives_multiple_sequential_prompts
     #[tokio::test]
@@ -212,8 +194,8 @@ mod tests {
             responses.push((prompt, full_text));
         }
 
-        // Regression guard for the actual root cause found in production:
-        // mistralrs's sequence-level prefix cache matched unrelated requests
+        // Regression guard for a root cause found in production: the old
+        // engine's sequence-level prefix cache matched unrelated requests
         // against a *different* completed sequence's cached KV state (all
         // requests here share the same static system prompt, which is enough
         // to trigger a match) and resumed generation from it. The observed

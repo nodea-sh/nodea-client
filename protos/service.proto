@@ -40,7 +40,8 @@ message GeneratedText {
   optional string error = 6;
 
   // Tool calls the model emitted, as OpenAI's tool_calls array in verbatim
-  // JSON. mistralrs's ToolCallResponse serialises to exactly that shape.
+  // JSON: each call has an id, type "function", and function.arguments as a
+  // JSON string.
   //
   // The engine detects tool calls by parsing the generated text and emits each
   // one complete, in a single chunk, together with finish_reason "tool_calls" -
@@ -51,8 +52,8 @@ message GeneratedText {
 
   // This token's log probabilities, as one OpenAI ChatCompletionTokenLogprob
   // object in verbatim JSON. Built on the node because only the node has the
-  // tokenizer: mistralrs reports alternatives by token *id*, and OpenAI's shape
-  // wants the token text plus its UTF-8 bytes.
+  // tokenizer and the raw logits, and OpenAI's shape wants the token text plus
+  // its UTF-8 bytes. Values are natural logs.
   optional string logprobs = 8;
 
   // Which of the n requested completions this token belongs to. Unset means 0,
@@ -184,17 +185,16 @@ message ChatCompletionRequest {
   optional float presence_penalty = 8;
 
   // OpenAI's response_format object, carried verbatim as JSON rather than
-  // modelled in protobuf. JSON Schema is not expressible in protobuf, and
-  // mistralrs's Constraint::JsonSchema takes a serde_json::Value anyway, so
-  // re-modelling it would only add a lossy round-trip. The backend validates
-  // the envelope before sending it.
+  // modelled in protobuf. JSON Schema is not expressible in protobuf, and the
+  // node's engine takes the schema as JSON anyway, so re-modelling it would
+  // only add a lossy round-trip. The backend validates the envelope before
+  // sending it.
   optional string response_format = 9;
 
-  // OpenAI's tools array and tool_choice, both verbatim JSON. mistralrs's
-  // Tool, Function and ToolChoice all derive Deserialize in OpenAI's own wire
-  // shape, so the node parses these directly and the proto does not have to
-  // model JSON Schema tool parameters. tool_choice is a string OR an object in
-  // the OpenAI schema, which is another reason not to model it.
+  // OpenAI's tools array and tool_choice, both verbatim JSON. The node's
+  // engine takes OpenAI's own wire shape, so the proto does not have to model
+  // JSON Schema tool parameters. tool_choice is a string OR an object in the
+  // OpenAI schema, which is another reason not to model it.
   optional string tools = 10;
   optional string tool_choice = 11;
 
@@ -210,20 +210,16 @@ message ChatCompletionRequest {
   // A bias set computed against OpenAI's vocabulary is meaningless on a node.
   map<uint32, float> logit_bias = 15;
 
-  // OpenAI's web_search_options object, verbatim JSON. mistralrs's
-  // WebSearchOptions deserialises from OpenAI's shape, so search_context_size
-  // and user_location map 1:1 with no translation.
+  // OpenAI's web_search_options object, verbatim JSON.
   //
-  // Only a node that loaded its model with search enabled can honour this: it
-  // needs an embedding model downloaded and network egress, which is a
-  // deployment decision rather than something every node can do. Such a node
-  // advertises the "web_search" capability, and the backend rejects the field
-  // when the routed node does not.
+  // Only a node that advertises the "web_search" capability can honour this,
+  // and the backend rejects the field when the routed node does not. Current
+  // nodes do not advertise it and fail a request that sets it.
   optional string web_search_options = 16;
 
-  // OpenAI's reasoning_effort. Its enum has seven values; mistralrs 0.8.1
-  // expresses three (low, medium, high), so the backend rejects the rest rather
-  // than rounding them to the nearest - a caller who asked for "minimal" and
+  // OpenAI's reasoning_effort. Its enum has seven values; the node expresses
+  // three (low, medium, high), passed to the chat template, so the backend
+  // rejects the rest rather than rounding them to the nearest - a caller who asked for "minimal" and
   // silently got "low" is paying for reasoning tokens they tried to avoid.
   optional string reasoning_effort = 17;
 }

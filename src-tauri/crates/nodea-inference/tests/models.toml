@@ -1,0 +1,37 @@
+# Pinned test models for the inference contract suite. All public, none gated.
+#
+#   cargo run -p nodea-inference --bin fetch-test-models -- [--only smoke,tools]
+#
+# Changing this file invalidates the CI model cache (it is the cache key).
+
+[smoke]   # fastest: plain chat, stop, length, logprobs, n, seed, logit_bias, cancel
+repo     = "bartowski/SmolLM2-135M-Instruct-GGUF"
+revision = "09816acd5d99df7be770d85ea30822623dab342c"
+file     = "SmolLM2-135M-Instruct-Q4_K_M.gguf"
+size     = 105454432
+sha256   = "2e8040ceae7815abe0dcb3540b9995eaa1fa0d2ca9e797d0a635ae4433c68c2d"
+arch     = "llama"
+
+[tools]   # tool calling, tool replay, json_schema, reasoning (<think>), reasoning_effort
+repo     = "unsloth/Qwen3-0.6B-GGUF"
+revision = "50968a4468ef4233ed78cd7c3de230dd1d61a56b"
+file     = "Qwen3-0.6B-Q4_K_M.gguf"
+size     = 396705472
+sha256   = "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a"
+arch     = "qwen3"
+
+[lfm2]    # an architecture the previous engine could not load (LiquidAI, dropped by nodea #302)
+repo     = "LiquidAI/LFM2-350M-GGUF"
+revision = "8fdc9d526b7ed346b19257551b05816c7912ecc2"
+file     = "LFM2-350M-Q4_K_M.gguf"
+size     = 229309376
+sha256   = "a4d000c7064bd3b2e42c6845836286a899a4e79cf1791da1a6797b58d575957d"
+arch     = "lfm2"
+
+[gemma3]  # the example nodea #302 cites (`Unknown GGUF architecture gemma3`)
+repo     = "ggml-org/gemma-3-1b-it-GGUF"
+revision = "f9c28bcd85737ffc5aef028638d3341d49869c27"
+file     = "gemma-3-1b-it-Q4_K_M.gguf"
+size     = 806058240
+sha256   = "8ccc5cd1f1b3602548715ae25a66ed73fd5dc68a210412eea643eb20eb75a135"
+arch     = "gemma3"
