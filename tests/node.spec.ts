@@ -110,6 +110,60 @@ test.describe('Node phases (demo mode)', () => {
   })
 })
 
+// The figures the mock's forced phases report (src/lib/mockTauri.ts): a
+// 4.0 GB download 62% through at 32 MB/s, a load 7s in, a 12.4s load.
+const PLACEHOLDERS = [/4\.9 GB/, /24 MB\/s/, /~20s/, /\b18s\b/, /71%/, /unified memory/, /where it left off/, /twenty seconds/]
+
+async function expectNoPlaceholders(page: Page) {
+  for (const placeholder of PLACEHOLDERS) {
+    await expect(page.getByText(placeholder)).toHaveCount(0)
+  }
+}
+
+test.describe('Node figures come from the node (demo mode)', () => {
+  test('downloading shows the real size and speed', async ({ page }) => {
+    await gotoPhase(page, 'downloading')
+
+    await expect(page.getByText('2.5 GB of 4.0 GB · 32 MB/s')).toBeVisible()
+    await expect(page.getByText('2.5 GB of 4.0 GB at 32 MB/s')).toBeVisible()
+    await expectNoPlaceholders(page)
+  })
+
+  test('loading counts elapsed time and names the backend', async ({ page }) => {
+    await gotoPhase(page, 'loading')
+
+    await expect(page.getByText('Loading into memory on Metal')).toBeVisible()
+    await expect(page.getByText('On Metal', { exact: true })).toBeVisible()
+    const elapsed = page.getByText(/^(7|8)s$/).first()
+    await expect(elapsed).toBeVisible()
+    // It keeps counting.
+    await expect(page.getByText(/^(9|10)s$/).first()).toBeVisible({ timeout: 4000 })
+    await expectNoPlaceholders(page)
+  })
+
+  test('serving shows how long the load took, and no made-up capacity', async ({ page }) => {
+    await gotoPhase(page, 'serving')
+
+    await expect(page.getByText('Llama 3.1 8B Instruct, loaded in 12.4s.')).toBeVisible()
+    await expect(page.getByText('Live', { exact: true }).first()).toBeVisible()
+    await expectNoPlaceholders(page)
+  })
+
+  test('paused shows no capacity figure', async ({ page }) => {
+    await gotoPhase(page, 'paused')
+
+    await expect(page.getByText('paused', { exact: true })).toBeVisible()
+    await expect(page.getByText('0%', { exact: true })).toHaveCount(0)
+  })
+
+  test('stalled says the download starts again', async ({ page }) => {
+    await gotoPhase(page, 'stalled')
+
+    await expect(page.getByText('The model failed. Retry to start again.')).toBeVisible()
+    await expectNoPlaceholders(page)
+  })
+})
+
 test.describe('Node throughput chart (demo mode)', () => {
   test('draws one bar per bucket of the selected range', async ({ page }) => {
     await gotoPhase(page, 'serving')

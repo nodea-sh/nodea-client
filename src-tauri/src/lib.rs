@@ -7,6 +7,7 @@
 // separate crates and its unit tests ran twice.
 pub mod catalogue;
 pub mod devlog;
+pub mod download_rate;
 pub mod generations;
 pub mod model_manager;
 pub mod private_file;
