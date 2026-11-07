@@ -11,7 +11,7 @@ import { test, expect, type Page } from '@playwright/test'
  * AdminRoute that redirected standard users to /node.
  */
 async function gotoFleet(page: Page, role?: 'standard') {
-  await page.goto(`/fleet?demo=true${role ? `&role=${role}` : ''}`)
+  await page.goto(`/fleet?demo=true&os=macos${role ? `&role=${role}` : ''}`)
   await page.waitForLoadState('domcontentloaded')
 }
 

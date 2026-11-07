@@ -7,6 +7,7 @@ import { isDemoMode, mockInvoke } from '@/lib/mockTauri'
 import { isTauriApp } from '@/lib/platform'
 import type { NodeState } from '@/hooks/useNodePhase'
 import { version as appVersion } from '../../package.json'
+import { thisDevice } from '@/lib/device'
 
 interface ModelCacheInfo {
   path: string
@@ -45,7 +46,7 @@ export function SettingsPage() {
       </h1>
 
       <div className="flex flex-col gap-0.5">
-        <Row first title="Share compute" description="Whenever this Mac is awake and plugged in."
+        <Row first title="Share compute" description={`While Nodea is running and ${thisDevice()} is awake.`}
              control={<Switch on={node.sharing} onChange={node.setSharing} />} />
         <Row last title="Model cache"
              description={cache ? `${formatGB(cache.size_bytes)} in ${cache.path}` : 'Calculating…'}

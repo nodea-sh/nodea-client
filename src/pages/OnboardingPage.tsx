@@ -6,6 +6,7 @@ import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { Card } from '../components/ui/card'
 import { toast } from 'sonner'
+import { thisDeviceCapitalized } from '@/lib/device'
 
 export function OnboardingPage() {
   const [organizationName, setOrganizationName] = useState('')
@@ -98,7 +99,7 @@ export function OnboardingPage() {
             <>
               <h1 className="text-2xl font-bold mb-2">You're no longer in {leftOrganizationName}</h1>
               <p className="text-muted-foreground">
-                This Mac stopped sharing compute. Create an organization below, or open an
+                {thisDeviceCapitalized()} stopped sharing compute. Create an organization below, or open an
                 invitation link to join one.
               </p>
             </>

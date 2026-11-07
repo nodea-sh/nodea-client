@@ -13,6 +13,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { apiClient, type Me } from '@/lib/api'
 import { isTauriApp } from '@/lib/platform'
 import { WEB_CONSOLE_URL } from '@/lib/webConsole'
+import { thisDevice, thisDeviceCapitalized } from '@/lib/device'
 
 const ACCOUNT_URL = `${WEB_CONSOLE_URL}account`
 
@@ -45,7 +46,7 @@ export function AccountSection() {
   const blocked = me.organization !== null && !me.can_leave
   const leaveText = me.leave_deletes_organization
     ? 'You are the last member, so leaving deletes the organization, its API keys and its devices.'
-    : 'This Mac stops sharing compute with it.' +
+    : `${thisDeviceCapitalized()} stops sharing compute with it.` +
       (me.leave_disables_api_keys > 0
         ? ` ${me.leave_disables_api_keys === 1 ? 'The API key' : `The ${me.leave_disables_api_keys} API keys`} you created stop working.`
         : '')
@@ -98,7 +99,7 @@ export function AccountSection() {
                 ? `You are the last member of ${me.organization.name}, so it is deleted too. `
                 : `You leave ${me.organization.name}, and API keys you created there stop working. `
               : '') +
-            'Downloaded models stay on this Mac.'
+            `Downloaded models stay on ${thisDevice()}.`
           }
           expected={me.email}
           inputLabel={`Type ${me.email} to confirm`}
