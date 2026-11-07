@@ -22,6 +22,9 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "macOS": {
+      "minimumSystemVersion": "10.15"
+    },
     "windows": {
       "wix": {
         "upgradeCode": "c00cab28-27d5-5e3e-8e36-e12baad322b3"
