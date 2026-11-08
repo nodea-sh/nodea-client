@@ -57,7 +57,7 @@ test.describe('Settings → Account (demo mode)', () => {
     await page.getByRole('button', { name: 'Delete' }).click()
 
     const dialog = page.getByRole('dialog')
-    await expect(dialog).toContainText('Downloaded models stay on this Mac.')
+    await expect(dialog).toContainText('Downloaded models stay on this device.')
     const confirm = dialog.getByRole('button', { name: 'Delete account' })
     await expect(confirm).toBeDisabled()
     await dialog.getByLabel(/to confirm/).fill('DEMO@getnodea.com')

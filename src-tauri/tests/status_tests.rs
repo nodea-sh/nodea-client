@@ -69,6 +69,9 @@ mod tests {
         let status = ModelStatus::Downloading {
             model_name: "test-model.gguf".to_string(),
             progress: 50,
+            downloaded_bytes: 0,
+            total_bytes: 0,
+            bytes_per_sec: 0,
         };
         let json = serde_json::to_string(&status).unwrap();
         assert!(json.contains(r#""type":"Downloading""#));
@@ -78,6 +81,7 @@ mod tests {
         // Test Loading
         let status = ModelStatus::Loading {
             model_name: "test-model.gguf".to_string(),
+            started_at_ms: 0,
         };
         let json = serde_json::to_string(&status).unwrap();
         assert!(json.contains(r#""type":"Loading""#));
@@ -86,6 +90,7 @@ mod tests {
         // Test Ready
         let status = ModelStatus::Ready {
             model_name: "test-model.gguf".to_string(),
+            load_ms: None,
         };
         let json = serde_json::to_string(&status).unwrap();
         assert!(json.contains(r#""type":"Ready""#));
@@ -114,6 +119,7 @@ mod tests {
             ModelStatus::Downloading {
                 model_name,
                 progress,
+                ..
             } => {
                 assert_eq!(model_name, "test.gguf");
                 assert_eq!(progress, 75);
@@ -125,7 +131,7 @@ mod tests {
         let json = r#"{"type":"Loading","model_name":"test.gguf"}"#;
         let status: ModelStatus = serde_json::from_str(json).unwrap();
         match status {
-            ModelStatus::Loading { model_name } => {
+            ModelStatus::Loading { model_name, .. } => {
                 assert_eq!(model_name, "test.gguf");
             }
             _ => panic!("Expected Loading variant"),
@@ -135,7 +141,7 @@ mod tests {
         let json = r#"{"type":"Ready","model_name":"test.gguf"}"#;
         let status: ModelStatus = serde_json::from_str(json).unwrap();
         match status {
-            ModelStatus::Ready { model_name } => {
+            ModelStatus::Ready { model_name, .. } => {
                 assert_eq!(model_name, "test.gguf");
             }
             _ => panic!("Expected Ready variant"),
@@ -158,6 +164,7 @@ mod tests {
             connection: ConnectionStatus::Connected,
             model: ModelStatus::Ready {
                 model_name: "llama-3.2.gguf".to_string(),
+                load_ms: None,
             },
         };
 
@@ -182,6 +189,7 @@ mod tests {
             ModelStatus::Downloading {
                 model_name,
                 progress,
+                ..
             } => {
                 assert_eq!(model_name, "test.gguf");
                 assert_eq!(progress, 42);
@@ -196,6 +204,9 @@ mod tests {
         let status = ModelStatus::Downloading {
             model_name: "model.gguf".to_string(),
             progress: 0,
+            downloaded_bytes: 0,
+            total_bytes: 0,
+            bytes_per_sec: 0,
         };
         let json = serde_json::to_string(&status).unwrap();
         assert!(json.contains(r#""progress":0"#));
@@ -203,6 +214,9 @@ mod tests {
         let status = ModelStatus::Downloading {
             model_name: "model.gguf".to_string(),
             progress: 100,
+            downloaded_bytes: 0,
+            total_bytes: 0,
+            bytes_per_sec: 0,
         };
         let json = serde_json::to_string(&status).unwrap();
         assert!(json.contains(r#""progress":100"#));

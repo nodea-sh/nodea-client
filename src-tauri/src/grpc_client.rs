@@ -1188,6 +1188,7 @@ async fn handle_load_model(
             app_handle,
             status::ModelStatus::Ready {
                 model_name: model_name.to_string(),
+                load_ms: None,
             },
         )
         .await;
@@ -1238,6 +1239,9 @@ async fn handle_load_model(
             status::ModelStatus::Downloading {
                 model_name: model_name.to_string(),
                 progress: 0,
+                downloaded_bytes: 0,
+                total_bytes: 0,
+                bytes_per_sec: 0,
             },
         )
         .await;
@@ -1251,6 +1255,8 @@ async fn handle_load_model(
         let progress_reporter = reporter.clone();
         // Owned: the callback outlives this frame.
         let progress_key = registry_key.clone();
+        // The callback is Fn, so the meter needs interior mutability.
+        let rate = std::sync::Mutex::new(ai4all_tauri::download_rate::RateMeter::default());
 
         let progress_callback = move |progress: model_manager::DownloadProgress| {
             println!(
@@ -1267,6 +1273,10 @@ async fn handle_load_model(
             if progress.percentage < 100.0 {
                 progress_reporter
                     .try_send_progress(progress_key.as_deref(), progress.percentage as u32);
+                let bytes_per_sec = rate
+                    .lock()
+                    .map(|mut meter| meter.record(Instant::now(), progress.downloaded_bytes))
+                    .unwrap_or(0);
 
                 let app_handle_clone2 = app_handle_clone.clone();
                 let model_name_clone2 = model_name_clone.clone();
@@ -1279,6 +1289,9 @@ async fn handle_load_model(
                         status::ModelStatus::Downloading {
                             model_name: model_name_clone2,
                             progress: progress.percentage as u8,
+                            downloaded_bytes: progress.downloaded_bytes,
+                            total_bytes: progress.total_bytes,
+                            bytes_per_sec,
                         },
                     )
                     .await;
@@ -1355,6 +1368,7 @@ async fn report_reload_event(
                     app_handle,
                     status::ModelStatus::Loading {
                         model_name: model_name.to_string(),
+                        started_at_ms: status::unix_ms_now(),
                     },
                 )
                 .await;
@@ -1379,6 +1393,7 @@ async fn report_reload_event(
                 app_handle,
                 status::ModelStatus::Ready {
                     model_name: model_name.to_string(),
+                    load_ms: Some(load_ms),
                 },
             )
             .await;
@@ -1420,6 +1435,7 @@ async fn report_reload_event(
                 app_handle,
                 status::ModelStatus::Ready {
                     model_name: previous.clone(),
+                    load_ms: Some(load_ms),
                 },
             )
             .await;
