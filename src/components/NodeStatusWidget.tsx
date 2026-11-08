@@ -1,5 +1,6 @@
 import { CircleNotch, DownloadSimple, WarningCircle, Cube } from '@phosphor-icons/react'
 import type { NodeState } from '@/hooks/useNodePhase'
+import { downloadSummary } from '@/lib/utils'
 
 /* Sidebar status widget — the single source of truth for "what is the node doing".
  * One card, two-segment progress track: 1 · Download, 2 · Load.
@@ -7,11 +8,12 @@ import type { NodeState } from '@/hooks/useNodePhase'
  */
 export function NodeStatusWidget({ node }: { node: NodeState }) {
   const { phase, modelName, downloadProgress, sharing, setSharing, retry } = node
+  const { downloadedBytes, totalBytes, bytesPerSec, loadElapsedS, backend } = node
   const ready = phase === 'serving' || phase === 'paused'
 
   const header = {
     downloading: { icon: <DownloadSimple size={14} color="var(--n-accent-400)" />, title: 'Downloading', value: `${downloadProgress}%`, valueColor: 'var(--n-accent-300)' },
-    loading: { icon: <CircleNotch size={14} color="var(--n-accent-400)" className="n-spin" />, title: 'Loading', value: '—', valueColor: 'var(--n-text-3)' },
+    loading: { icon: <CircleNotch size={14} color="var(--n-accent-400)" className="n-spin" />, title: 'Loading', value: loadElapsedS === undefined ? '—' : `${loadElapsedS}s`, valueColor: 'var(--n-text-3)' },
     connecting: { icon: <CircleNotch size={14} color="var(--n-accent-400)" className="n-spin" />, title: 'Connecting', value: '—', valueColor: 'var(--n-text-3)' },
     stalled: { icon: <WarningCircle size={14} color="var(--n-text-2)" />, title: 'Download stalled', value: `${downloadProgress}%`, valueColor: 'var(--n-text-3)' },
     offline: { icon: <WarningCircle size={14} color="var(--n-text-2)" />, title: 'Offline', value: '—', valueColor: 'var(--n-text-3)' },
@@ -20,20 +22,22 @@ export function NodeStatusWidget({ node }: { node: NodeState }) {
     // used to be a hardcoded 100% (#317). The Node page shows real usage.
     serving: { icon: <Dot on />, title: 'Sharing', value: null, valueColor: 'var(--n-accent-300)' },
     paused: { icon: <Dot />, title: 'Paused', value: null, valueColor: 'var(--n-text-3)' },
+    'no-models': { icon: <Dot />, title: 'Waiting for a model', value: '—', valueColor: 'var(--n-text-3)' },
   }[phase]
 
   const caption = {
-    downloading: `${((downloadProgress / 100) * 4.9).toFixed(1)} of 4.9 GB · 24 MB/s`,
-    loading: 'Mapping 4.9 GB onto Metal · about 20s',
+    downloading: downloadSummary(downloadedBytes, totalBytes, bytesPerSec, ' · ') ?? 'Starting download…',
+    loading: backend && backend !== 'CPU' ? `Loading into memory on ${backend}` : 'Loading into memory',
     connecting: 'Reaching the coordinator…',
-    stalled: 'The model failed. Retry to pick up where it left off.',
+    stalled: 'The model failed. Retry to start again.',
     offline: "Can't reach the coordinator. Retrying on its own.",
     refused: 'The server refused this account. See the Node page.',
     serving: null,
     paused: 'Not taking new work. The model stays loaded, so resuming is instant.',
+    'no-models': 'Your organization has no models yet.',
   }[phase]
 
-  const bar1 = phase === 'downloading' || phase === 'stalled' ? `${downloadProgress}%` : '100%'
+  const bar1 = phase === 'downloading' || phase === 'stalled' ? `${downloadProgress}%` : phase === 'no-models' ? '0%' : '100%'
   const bar1Color = phase === 'stalled' ? 'var(--n-mute)' : phase === 'downloading' ? 'var(--n-accent)' : 'var(--n-accent-700)'
   const onStep1 = phase === 'downloading' || phase === 'stalled'
   const onStep2 = phase === 'loading'
@@ -53,33 +57,39 @@ export function NodeStatusWidget({ node }: { node: NodeState }) {
         )}
       </div>
 
-      <div className="mt-2 flex items-center gap-1.5">
-        <Cube size={13} color="var(--n-text-4)" />
-        <span className="truncate text-[13px] leading-[1.3] text-[var(--n-text-2)]">{modelName}</span>
-      </div>
-
-      {/* two-segment track */}
-      <div className="mt-[9px] flex gap-1">
-        <span className="block h-1 flex-1 overflow-hidden rounded-[2px] bg-[var(--n-border)]">
-          <span className="block h-full rounded-[2px] transition-[width] duration-[400ms] ease-out"
-                style={{ width: bar1, background: bar1Color }} />
-        </span>
-        <span className="relative block h-1 flex-1 overflow-hidden rounded-[2px] bg-[var(--n-border)]">
-          {phase === 'loading' ? (
-            <span className="n-slide absolute left-0 top-0 h-full w-[30%] rounded-[2px] bg-[var(--n-accent)]" />
-          ) : ready ? (
-            <span className="block h-full w-full rounded-[2px] bg-[var(--n-accent-700)]" />
-          ) : null}
-        </span>
-      </div>
-
-      {!ready && (
-        <div className="mt-1.5 flex justify-between text-[11px] font-semibold uppercase leading-none tracking-[0.05em]">
-          <span style={{ color: onStep1 ? 'var(--n-accent-300)' : 'var(--n-text-4)' }}>
-            {onStep1 ? '1 · Download' : '1 · Done'}
-          </span>
-          <span style={{ color: onStep2 ? 'var(--n-accent-300)' : 'var(--n-text-4)' }}>2 · Load</span>
+      {modelName && (
+        <div className="mt-2 flex items-center gap-1.5">
+          <Cube size={13} color="var(--n-text-4)" />
+          <span className="truncate text-[13px] leading-[1.3] text-[var(--n-text-2)]">{modelName}</span>
         </div>
+      )}
+
+      {/* two-segment track; none while connecting, when nothing is assigned yet */}
+      {phase !== 'connecting' && (
+        <>
+          <div className="mt-[9px] flex gap-1">
+            <span className="block h-1 flex-1 overflow-hidden rounded-[2px] bg-[var(--n-border)]">
+              <span className="block h-full rounded-[2px] transition-[width] duration-[400ms] ease-out"
+                    style={{ width: bar1, background: bar1Color }} />
+            </span>
+            <span className="relative block h-1 flex-1 overflow-hidden rounded-[2px] bg-[var(--n-border)]">
+              {phase === 'loading' ? (
+                <span className="n-slide absolute left-0 top-0 h-full w-[30%] rounded-[2px] bg-[var(--n-accent)]" />
+              ) : ready ? (
+                <span className="block h-full w-full rounded-[2px] bg-[var(--n-accent-700)]" />
+              ) : null}
+            </span>
+          </div>
+
+          {!ready && phase !== 'no-models' && (
+            <div className="mt-1.5 flex justify-between text-[11px] font-semibold uppercase leading-none tracking-[0.05em]">
+              <span style={{ color: onStep1 ? 'var(--n-accent-300)' : 'var(--n-text-4)' }}>
+                {onStep1 ? '1 · Download' : '1 · Done'}
+              </span>
+              <span style={{ color: onStep2 ? 'var(--n-accent-300)' : 'var(--n-text-4)' }}>2 · Load</span>
+            </div>
+          )}
+        </>
       )}
 
       {caption && <div className="mt-[9px] text-[13px] leading-[1.4] text-[var(--n-text-3)]">{caption}</div>}

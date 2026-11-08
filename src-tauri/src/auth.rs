@@ -367,10 +367,10 @@ async fn fetch_user(access_token: &str) -> Result<User, Box<dyn std::error::Erro
 ///
 /// Routes through our own backend rather than Supabase's `/auth/v1/signup`
 /// directly, so the desktop app gets the same server-side validation and
-/// Admin-API-based (unconfirmed) account creation as the web app - our own
-/// verification email is what confirms the account, not Supabase's mailer.
-/// There is no session to return here: signup only succeeds once the
-/// emailed confirmation link is clicked.
+/// Admin-API-based account creation as the web app - our own verification
+/// email is what confirms the address, not Supabase's mailer. There is no
+/// session to return here: the account can log in straight away, so the
+/// caller signs in with the same credentials next.
 pub async fn sign_up_email_password(
     email: String,
     password: String,

@@ -11,6 +11,11 @@ interface ModelStatus {
   model_name?: string
   progress?: number
   message?: string
+  downloaded_bytes?: number
+  total_bytes?: number
+  bytes_per_sec?: number
+  started_at_ms?: number
+  load_ms?: number | null
 }
 
 export interface StatusSnapshot {
@@ -90,11 +95,16 @@ const simulateModelLifecycle = () => {
   // After 5 seconds, start downloading
   setTimeout(() => {
     const modelName = 'llama-3.2-1b'
-    currentModelStatus = {
-      type: 'Downloading',
+    const totalBytes = Math.round(0.8 * 1024 ** 3)
+    const downloading = (progress: number) => ({
+      type: 'Downloading' as const,
       model_name: modelName,
-      progress: 0
-    }
+      progress,
+      downloaded_bytes: Math.round((totalBytes * progress) / 100),
+      total_bytes: totalBytes,
+      bytes_per_sec: progress > 0 ? Math.round(totalBytes * 0.12) : 0, // ~12%/s, the simulated pace
+    })
+    currentModelStatus = downloading(0)
     emitEvent('model-status-changed', currentModelStatus)
 
     // Simulate incremental download progress
@@ -106,18 +116,15 @@ const simulateModelLifecycle = () => {
         clearInterval(progressInterval)
 
         // Download complete, emit final 100%
-        currentModelStatus = {
-          type: 'Downloading',
-          model_name: modelName,
-          progress: 100
-        }
+        currentModelStatus = downloading(100)
         emitEvent('model-status-changed', currentModelStatus)
 
         // Start loading after download
         setTimeout(() => {
           currentModelStatus = {
             type: 'Loading',
-            model_name: modelName
+            model_name: modelName,
+            started_at_ms: Date.now()
           }
           emitEvent('model-status-changed', currentModelStatus)
 
@@ -125,17 +132,14 @@ const simulateModelLifecycle = () => {
           setTimeout(() => {
             currentModelStatus = {
               type: 'Ready',
-              model_name: modelName
+              model_name: modelName,
+              load_ms: 3000
             }
             emitEvent('model-status-changed', currentModelStatus)
           }, 3000)
         }, 500)
       } else {
-        currentModelStatus = {
-          type: 'Downloading',
-          model_name: modelName,
-          progress
-        }
+        currentModelStatus = downloading(progress)
         emitEvent('model-status-changed', currentModelStatus)
       }
     }, 1000) // Update every second
@@ -169,6 +173,13 @@ export const mockInvoke = async <T>(command: string, args?: any): Promise<T> => 
         simulateModelLifecycle()
       }
       return Promise.resolve('Model loading started' as any) as T
+
+    case 'get_inference_backend':
+      return 'Metal' as unknown as T
+
+    case 'get_system_memory':
+      // A 16 GB Apple Silicon Mac: Metal's working set is about two thirds.
+      return { total_memory_mb: 16384, available_memory_mb: 9000, accelerator_memory_mb: 10923 } as unknown as T
 
     case 'get_device_id':
       return 'device-001' as unknown as T
@@ -234,6 +245,10 @@ export const mockListen = async <T>(
  * tests/node.spec.ts.
  */
 const FORCED_MODEL_NAME = 'Llama 3.1 8B Instruct'
+// Figures the forced phases report; tests/node.spec.ts asserts their rendering.
+const FORCED_TOTAL_BYTES = 4 * 1024 ** 3
+const FORCED_BYTES_PER_SEC = 32 * 1024 ** 2
+const FORCED_LOAD_MS = 12_400
 
 const getForcedPhase = (): string | null => {
   return new URLSearchParams(window.location.search).get('phase')
@@ -276,20 +291,27 @@ const applyForcedPhase = (phase: string) => {
       break
     case 'downloading':
       currentConnectionStatus = { type: 'Connected' }
-      currentModelStatus = { type: 'Downloading', model_name: FORCED_MODEL_NAME, progress: 62 }
+      currentModelStatus = {
+        type: 'Downloading',
+        model_name: FORCED_MODEL_NAME,
+        progress: 62,
+        downloaded_bytes: Math.round(FORCED_TOTAL_BYTES * 0.62),
+        total_bytes: FORCED_TOTAL_BYTES,
+        bytes_per_sec: FORCED_BYTES_PER_SEC,
+      }
       break
     case 'loading':
       currentConnectionStatus = { type: 'Connected' }
-      currentModelStatus = { type: 'Loading', model_name: FORCED_MODEL_NAME }
+      currentModelStatus = { type: 'Loading', model_name: FORCED_MODEL_NAME, started_at_ms: Date.now() - 7_000 }
       break
     case 'serving':
       currentConnectionStatus = { type: 'Connected' }
-      currentModelStatus = { type: 'Ready', model_name: FORCED_MODEL_NAME }
+      currentModelStatus = { type: 'Ready', model_name: FORCED_MODEL_NAME, load_ms: FORCED_LOAD_MS }
       localStorage.setItem('nodea.sharing', 'true')
       break
     case 'paused':
       currentConnectionStatus = { type: 'Connected' }
-      currentModelStatus = { type: 'Ready', model_name: FORCED_MODEL_NAME }
+      currentModelStatus = { type: 'Ready', model_name: FORCED_MODEL_NAME, load_ms: FORCED_LOAD_MS }
       localStorage.setItem('nodea.sharing', 'false')
       break
     case 'stalled':
@@ -299,11 +321,11 @@ const applyForcedPhase = (phase: string) => {
     case 'offline':
       // The model is fine; only the coordinator is out of reach.
       currentConnectionStatus = { type: 'Error', message: 'Demo: no connection' }
-      currentModelStatus = { type: 'Ready', model_name: FORCED_MODEL_NAME }
+      currentModelStatus = { type: 'Ready', model_name: FORCED_MODEL_NAME, load_ms: FORCED_LOAD_MS }
       break
     case 'refused':
       currentConnectionStatus = { type: 'Refused', message: 'Account is inactive' }
-      currentModelStatus = { type: 'Ready', model_name: FORCED_MODEL_NAME }
+      currentModelStatus = { type: 'Ready', model_name: FORCED_MODEL_NAME, load_ms: FORCED_LOAD_MS }
       break
     default:
       console.warn(`[Mock Tauri] Unknown forced phase: ${phase}`)

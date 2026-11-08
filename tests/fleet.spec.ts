@@ -30,11 +30,19 @@ test.describe('Fleet (demo mode)', () => {
       // "MacBook Pro" is the machine the app reports as its own, so its name
       // cell carries the badge too - assert on the badge instead of an exact
       // text match that the badge breaks.
-      await expect(page.getByText('this Mac')).toBeVisible()
+      await expect(page.getByText('this device')).toBeVisible()
       await expect(page.getByText('iPhone 15', { exact: true })).toBeVisible()
       await expect(page.getByText('iPad Air', { exact: true })).toBeVisible()
     })
   }
+
+  test('each device links to its page in the web console', async ({ page }) => {
+    await gotoFleet(page)
+
+    // Owner and device id together: one machine can be registered by two members.
+    await expect(page.getByRole('link', { name: 'Open iPhone 15 in the web console' }))
+      .toHaveAttribute('href', 'https://app.getnodea.com/console/fleet/demo-user/device-002')
+  })
 
   test('the sidebar offers Fleet to a standard member', async ({ page }) => {
     await gotoFleet(page, 'standard')
@@ -57,7 +65,7 @@ test.describe('Fleet (demo mode)', () => {
       .toHaveAttribute('href', CONSOLE_URL)
   })
 
-  test('the sidebar account menu opens the console', async ({ page }) => {
+  test("the sidebar's Open Web Console button opens the console", async ({ page }) => {
     // window.open is a no-op in the Tauri webview under test, so record the
     // URL it was called with rather than waiting for a popup that never comes.
     await page.addInitScript(() => {
@@ -69,8 +77,8 @@ test.describe('Fleet (demo mode)', () => {
     })
     await gotoFleet(page)
 
-    await page.getByRole('button', { name: /Demo User/ }).click()
-    await page.getByRole('button', { name: /Web console/ }).click()
+    // Always on screen, without opening the account menu.
+    await page.getByRole('button', { name: 'Open Web Console' }).click()
 
     const opened = await page.evaluate(
       () => (window as unknown as { __openedUrls: string[] }).__openedUrls,

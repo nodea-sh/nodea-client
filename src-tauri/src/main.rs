@@ -285,9 +285,9 @@ async fn login_oauth(
 
 /// Sign up a new user with email and password.
 ///
-/// No session is created or stored here - the backend only creates an
-/// unconfirmed account and emails our own verification link. The caller
-/// must log in separately once that link is clicked.
+/// No session is created or stored here - the backend creates the account
+/// and emails our own verification link. The caller logs in next with the
+/// same credentials; it does not have to wait for the link.
 #[tauri::command]
 async fn sign_up(email: String, password: String) -> Result<String, String> {
     auth::sign_up_email_password(email, password)
@@ -621,19 +621,25 @@ async fn load_model(
         &app_handle,
         status::ModelStatus::Loading {
             model_name: model_name.clone(),
+            started_at_ms: status::unix_ms_now(),
         },
     )
     .await;
 
     let mut model_mgr = state.model_manager.lock().await;
+    let started = std::time::Instant::now();
     let result = model_mgr.load_model(model_path).await;
+    let load_ms = Some(started.elapsed().as_millis() as u32);
 
     match result {
         Ok(_) => {
             set_model_status(
                 &state,
                 &app_handle,
-                status::ModelStatus::Ready { model_name },
+                status::ModelStatus::Ready {
+                    model_name,
+                    load_ms,
+                },
             )
             .await;
             Ok("Model loaded successfully".to_string())
@@ -672,6 +678,16 @@ async fn generate_text(
     let response = model_mgr.generate(&prompt, tokens).await?;
 
     Ok(response)
+}
+
+/// What llama.cpp runs on here ("Metal", "Vulkan" or "CPU"), for the UI.
+#[tauri::command]
+fn get_inference_backend() -> &'static str {
+    status::inference_backend(
+        ai4all_tauri::memory::probe()
+            .accelerator_memory_mb
+            .is_some(),
+    )
 }
 
 /// Check if a model is currently loaded
@@ -715,6 +731,25 @@ async fn get_model_cache_info(state: tauri::State<'_, AppState>) -> Result<Model
     })
 }
 
+#[derive(serde::Serialize)]
+struct SystemMemory {
+    total_memory_mb: u32,
+    available_memory_mb: u32,
+    accelerator_memory_mb: Option<u32>,
+}
+
+/// The same memory figures this node reports in its DeviceIdentity - the app
+/// uses them only to suggest models that fit when an admin adds one.
+#[tauri::command]
+fn get_system_memory() -> SystemMemory {
+    let m = ai4all_tauri::memory::probe();
+    SystemMemory {
+        total_memory_mb: m.total_memory_mb,
+        available_memory_mb: m.available_memory_mb,
+        accelerator_memory_mb: m.accelerator_memory_mb,
+    }
+}
+
 /// Open the model cache folder in the system file manager. The path comes
 /// from the app's own state, never from the webview, so shell.open's scope can
 /// stay limited to web URLs.
@@ -748,6 +783,7 @@ async fn load_model_auto(
             &app_handle,
             status::ModelStatus::Loading {
                 model_name: model_name.clone(),
+                started_at_ms: status::unix_ms_now(),
             },
         )
         .await;
@@ -763,6 +799,9 @@ async fn load_model_auto(
             status::ModelStatus::Downloading {
                 model_name: model_name.clone(),
                 progress: 0,
+                downloaded_bytes: 0,
+                total_bytes: 0,
+                bytes_per_sec: 0,
             },
         )
         .await;
@@ -771,6 +810,7 @@ async fn load_model_auto(
         let app_handle_clone = app_handle.clone();
         let model_name_clone = model_name.clone();
         let state_clone = state.inner().clone();
+        let rate = std::sync::Mutex::new(ai4all_tauri::download_rate::RateMeter::default());
 
         let progress_callback = move |progress: model_manager::DownloadProgress| {
             println!(
@@ -786,6 +826,12 @@ async fn load_model_auto(
             // Only update status to "Downloading" if not complete (< 100%)
             // At 100%, we'll explicitly set "Loading" status after download_model returns
             if progress.percentage < 100.0 {
+                let bytes_per_sec = rate
+                    .lock()
+                    .map(|mut meter| {
+                        meter.record(std::time::Instant::now(), progress.downloaded_bytes)
+                    })
+                    .unwrap_or(0);
                 let app_handle_clone2 = app_handle_clone.clone();
                 let model_name_clone2 = model_name_clone.clone();
                 let state_clone2 = state_clone.clone();
@@ -797,6 +843,9 @@ async fn load_model_auto(
                         status::ModelStatus::Downloading {
                             model_name: model_name_clone2,
                             progress: progress.percentage as u8,
+                            downloaded_bytes: progress.downloaded_bytes,
+                            total_bytes: progress.total_bytes,
+                            bytes_per_sec,
                         },
                     )
                     .await;
@@ -817,6 +866,7 @@ async fn load_model_auto(
                     &app_handle,
                     status::ModelStatus::Loading {
                         model_name: model_name.clone(),
+                        started_at_ms: status::unix_ms_now(),
                     },
                 )
                 .await;
@@ -835,14 +885,19 @@ async fn load_model_auto(
     };
 
     // Load the model
+    let started = std::time::Instant::now();
     let result = model_mgr.load_model(model_path).await;
+    let load_ms = Some(started.elapsed().as_millis() as u32);
 
     match result {
         Ok(_) => {
             set_model_status(
                 &state,
                 &app_handle,
-                status::ModelStatus::Ready { model_name },
+                status::ModelStatus::Ready {
+                    model_name,
+                    load_ms,
+                },
             )
             .await;
             Ok("Model loaded successfully".to_string())
@@ -1262,7 +1317,9 @@ fn main() {
             load_model,
             generate_text,
             is_model_loaded,
+            get_inference_backend,
             get_model_cache_info,
+            get_system_memory,
             reveal_model_cache,
             load_model_auto,
             get_all_status,

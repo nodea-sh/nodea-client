@@ -16,8 +16,25 @@ test.describe('Node phases (demo mode)', () => {
     await gotoPhase(page, 'downloading')
 
     await expect(page.getByText('Downloading', { exact: true })).toBeVisible()
-    await expect(page.locator('h1')).toHaveText('Fetching the model for this Mac.')
+    await expect(page.locator('h1')).toHaveText('Fetching the model for this device.')
     await expect(page.getByText('62%').first()).toBeVisible()
+  })
+
+  test('connecting with no model assigned shows no model', async ({ page }) => {
+    await gotoPhase(page, 'connecting')
+
+    await expect(page.locator('h1')).toHaveText('Reaching the coordinator.')
+    await expect(page.getByText('Llama 3.1 8B Instruct')).toHaveCount(0)
+    await expect(page.getByText(/cached/i)).toHaveCount(0)
+    await expect(page.getByText('Fetching weights')).toHaveCount(0)
+    await expect(page.getByText('1 · Done')).toHaveCount(0)
+  })
+
+  test('downloading names the model it was assigned', async ({ page }) => {
+    await gotoPhase(page, 'downloading')
+
+    // FORCED_MODEL_NAME in src/lib/mockTauri.ts, sent as the status's model_name.
+    await expect(page.getByText('Llama 3.1 8B Instruct').first()).toBeVisible()
   })
 
   test('loading: widget and hero agree', async ({ page }) => {
@@ -50,7 +67,7 @@ test.describe('Node phases (demo mode)', () => {
 
     await expect(page.getByText('Not sharing', { exact: true }).first()).toBeVisible()
     await expect(page.locator('h1')).toHaveText('The server refused this account.')
-    await expect(page.getByText('Account is inactive. This Mac stopped sharing compute.')).toBeVisible()
+    await expect(page.getByText('Account is inactive. This device stopped sharing compute.')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Retry now' })).toHaveCount(0)
   })
 
@@ -66,30 +83,77 @@ test.describe('Node phases (demo mode)', () => {
 
     // "Sharing" appears twice while ready (widget title + toggle row label).
     await expect(page.getByText('Sharing', { exact: true }).first()).toBeVisible()
-    await expect(page.locator('h1')).toHaveText('This Mac is serving the network.')
+    await expect(page.locator('h1')).toHaveText('This device is serving the network.')
   })
 
   test('paused: widget and hero agree', async ({ page }) => {
     await gotoPhase(page, 'paused')
 
     await expect(page.getByText('Paused', { exact: true })).toBeVisible()
-    await expect(page.locator('h1')).toHaveText('Paused. This Mac is idle.')
+    await expect(page.locator('h1')).toHaveText('Paused. This device is idle.')
   })
 
   test('sharing toggle flips widget, hero and ring together', async ({ page }) => {
     await gotoPhase(page, 'serving')
 
-    await expect(page.locator('h1')).toHaveText('This Mac is serving the network.')
+    await expect(page.locator('h1')).toHaveText('This device is serving the network.')
 
     // The whole status widget is the sharing toggle when the node is ready.
     await page.locator('button[aria-pressed]').click()
 
     await expect(page.getByText('Paused', { exact: true })).toBeVisible()
-    await expect(page.locator('h1')).toHaveText('Paused. This Mac is idle.')
+    await expect(page.locator('h1')).toHaveText('Paused. This device is idle.')
 
     // Toggling back should restore the serving copy.
     await page.locator('button[aria-pressed]').click()
-    await expect(page.locator('h1')).toHaveText('This Mac is serving the network.')
+    await expect(page.locator('h1')).toHaveText('This device is serving the network.')
+  })
+})
+
+// The figures the mock's forced phases report (src/lib/mockTauri.ts): a
+// 4.0 GB download 62% through at 32 MB/s, a load 7s in, a 12.4s load.
+const PLACEHOLDERS = [/4\.9 GB/, /24 MB\/s/, /~20s/, /\b18s\b/, /71%/, /unified memory/, /where it left off/, /twenty seconds/]
+
+async function expectNoPlaceholders(page: Page) {
+  for (const placeholder of PLACEHOLDERS) {
+    await expect(page.getByText(placeholder)).toHaveCount(0)
+  }
+}
+
+test.describe('Node figures come from the node (demo mode)', () => {
+  test('downloading shows the real size and speed', async ({ page }) => {
+    await gotoPhase(page, 'downloading')
+
+    await expect(page.getByText('2.5 GB of 4.0 GB · 32 MB/s')).toBeVisible()
+    await expect(page.getByText('2.5 GB of 4.0 GB at 32 MB/s')).toBeVisible()
+    await expectNoPlaceholders(page)
+  })
+
+  test('loading counts elapsed time and names the backend', async ({ page }) => {
+    await gotoPhase(page, 'loading')
+
+    await expect(page.getByText('Loading into memory on Metal')).toBeVisible()
+    await expect(page.getByText('On Metal', { exact: true })).toBeVisible()
+    const elapsed = page.getByText(/^(7|8)s$/).first()
+    await expect(elapsed).toBeVisible()
+    // It keeps counting.
+    await expect(page.getByText(/^(9|10)s$/).first()).toBeVisible({ timeout: 4000 })
+    await expectNoPlaceholders(page)
+  })
+
+  test('serving shows how long the load took, and real usage instead of a made-up capacity', async ({ page }) => {
+    await page.goto('/node?demo=true&phase=serving&usage=42')
+
+    await expect(page.getByText('Llama 3.1 8B Instruct, loaded in 12.4s.')).toBeVisible()
+    await expect(page.getByTestId('usage-ring')).toContainText('42%')
+    await expectNoPlaceholders(page)
+  })
+
+  test('stalled says the download starts again', async ({ page }) => {
+    await gotoPhase(page, 'stalled')
+
+    await expect(page.getByText('The model failed. Retry to start again.')).toBeVisible()
+    await expectNoPlaceholders(page)
   })
 })
 
