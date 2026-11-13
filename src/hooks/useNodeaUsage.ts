@@ -2,18 +2,19 @@ import { useEffect, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { isDemoMode, mockInvoke } from '@/lib/mockTauri'
 
-/* Mirrors src-tauri/src/machine_usage.rs. Whole-machine utilization: GPU when
- * the OS exposes it, CPU otherwise. Not Nodea's share alone. */
-export interface MachineUsage {
+/* Mirrors nodea_usage::NodeaUsage (src-tauri/crates/nodea-usage): how much of
+ * this device's GPU - CPU on a CPU-only build - the Nodea process itself is
+ * using. Other apps don't count. `percent` is null when the OS gave no reading. */
+export interface NodeaUsage {
   source: 'gpu' | 'cpu'
-  percent: number
+  percent: number | null
 }
 
 const POLL_MS = 2000
 
-/** Polls the node's machine usage while `enabled`; null until the first reading. */
-export function useMachineUsage(enabled: boolean): MachineUsage | null {
-  const [usage, setUsage] = useState<MachineUsage | null>(null)
+/** Polls Nodea's usage while `enabled`; null until the first answer. */
+export function useNodeaUsage(enabled: boolean): NodeaUsage | null {
+  const [usage, setUsage] = useState<NodeaUsage | null>(null)
 
   useEffect(() => {
     if (!enabled) {
@@ -24,7 +25,7 @@ export function useMachineUsage(enabled: boolean): MachineUsage | null {
     let cancelled = false
     const refresh = async () => {
       try {
-        const next = await inv<MachineUsage>('machine_usage')
+        const next = await inv<NodeaUsage>('nodea_usage')
         if (!cancelled) setUsage(next)
       } catch (err) {
         console.error(err)

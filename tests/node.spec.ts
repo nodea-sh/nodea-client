@@ -161,11 +161,11 @@ test.describe('Node usage ring (demo mode, #317)', () => {
   const ring = (page: Page) => page.getByTestId('usage-ring')
 
   for (const pct of [0, 50, 100]) {
-    test(`serving: the ring shows the machine's real usage (${pct}%)`, async ({ page }) => {
+    test(`serving: the ring shows Nodea's own GPU usage (${pct}%)`, async ({ page }) => {
       await page.goto(`/node?demo=true&phase=serving&usage=${pct}`)
 
       await expect(ring(page)).toContainText(`${pct}%`)
-      await expect(ring(page)).toContainText('GPU in use')
+      await expect(ring(page)).toContainText('Nodea GPU')
       await expect(ring(page)).not.toContainText('71%')
     })
   }
@@ -174,17 +174,25 @@ test.describe('Node usage ring (demo mode, #317)', () => {
     await gotoPhase(page, 'serving')
 
     await expect(ring(page)).toContainText('0%')
-    await expect(ring(page)).toHaveAttribute('title', /GPU utilization.*every app/)
+    await expect(ring(page)).toHaveAttribute('title', /GPU Nodea is using.*Other apps don't count/)
   })
 
-  test('without a GPU reading the ring says it is CPU', async ({ page }) => {
+  test('a platform without a reading shows a dash, never a number', async ({ page }) => {
+    await page.goto('/node?demo=true&phase=serving&usage=none')
+
+    await expect(ring(page)).toContainText('—')
+    await expect(ring(page)).toContainText('Nodea GPU')
+    await expect(ring(page)).not.toContainText('%')
+  })
+
+  test('a CPU-only device shows Nodea CPU usage', async ({ page }) => {
     await page.goto('/node?demo=true&phase=serving&usage=33&usageSource=cpu')
 
     await expect(ring(page)).toContainText('33%')
-    await expect(ring(page)).toContainText('CPU in use')
+    await expect(ring(page)).toContainText('Nodea CPU')
   })
 
-  test('paused still shows real usage, since other apps keep running', async ({ page }) => {
+  test('paused still shows Nodea usage, e.g. a request finishing', async ({ page }) => {
     await page.goto('/node?demo=true&phase=paused&usage=20')
 
     await expect(ring(page)).toContainText('20%')

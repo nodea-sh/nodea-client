@@ -9,7 +9,7 @@ import { AddModelsDialog } from '@/components/AddModelsDialog'
 import { SetupChecklist } from '@/components/SetupChecklist'
 import { PrimaryButton } from '@/components/nocturne'
 import { downloadSummary, formatDuration } from '@/lib/utils'
-import { useMachineUsage, type MachineUsage } from '@/hooks/useMachineUsage'
+import { useNodeaUsage, type NodeaUsage } from '@/hooks/useNodeaUsage'
 
 export function NodePage() {
   const node = useOutletContext<NodeState>()
@@ -22,7 +22,7 @@ export function NodePage() {
   const [chartStats, setChartStats] = useState<TokenStatsResponse[]>([])
   const [dayStats, setDayStats] = useState<TokenStatsResponse[]>([])
   const ready = node.phase === 'serving' || node.phase === 'paused'
-  const usage = useMachineUsage(ready)
+  const usage = useNodeaUsage(ready)
 
   useEffect(() => {
     let cancelled = false
@@ -217,14 +217,15 @@ export function NodePage() {
 }
 
 const USAGE_TOOLTIP =
-  'How busy this machine is right now: GPU utilization, or CPU when the GPU reports none. ' +
-  'Counts every app, not only Nodea. Updates every 2 seconds.'
+  "How much of this device's GPU Nodea is using right now (the CPU, on a device without a usable GPU). " +
+  "Other apps don't count. Updates every 2 seconds."
 
-/** The serving/paused ring: real machine usage, or a dash until the first reading. */
-function usageRing(usage: MachineUsage | null) {
-  if (!usage) return { ringPct: 0, ringLabel: '—', ringCaption: 'machine usage' }
+/** The serving/paused ring: Nodea's own usage, or a dash without a reading. */
+function usageRing(usage: NodeaUsage | null) {
+  const caption = usage?.source === 'cpu' ? 'Nodea CPU' : 'Nodea GPU'
+  if (usage?.percent == null) return { ringPct: 0, ringLabel: '—', ringCaption: caption }
   const pct = Math.max(0, Math.min(100, Math.round(usage.percent)))
-  return { ringPct: pct, ringLabel: `${pct}%`, ringCaption: usage.source === 'gpu' ? 'GPU in use' : 'CPU in use' }
+  return { ringPct: pct, ringLabel: `${pct}%`, ringCaption: caption }
 }
 
 function CapacityRing({ pct, label, caption, color, tooltip }: {

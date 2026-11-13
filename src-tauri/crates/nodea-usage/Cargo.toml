@@ -1,0 +1,24 @@
+[package]
+name = "nodea-usage"
+version = "0.1.0"
+description = "How much of this device's GPU (or CPU) the Nodea process itself is using"
+license = "Apache-2.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+# The CPU-only path: this process's CPU share.
+sysinfo = { version = "0.36.1", default-features = false, features = ["system"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+# NVIDIA's management library, loaded at runtime (libnvidia-ml.so ships with
+# the driver), so builds need no CUDA and machines without NVIDIA skip it.
+nvml-wrapper = "0.13.0"
+
+[target.'cfg(windows)'.dependencies]
+# PDH "GPU Engine" counters, the per-process figures Task Manager shows.
+windows = { version = "0.61.3", features = ["Win32_Foundation", "Win32_System_Performance"] }
+
+[dev-dependencies]
+serde_json = "1.0"
