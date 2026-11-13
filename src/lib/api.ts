@@ -1,5 +1,6 @@
 // API client for backend REST API
 import { mockApiClient } from './mockApi'
+import { isDemoMode } from './demoMode'
 import { invoke } from '@tauri-apps/api/core'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/site'
@@ -575,24 +576,11 @@ class ApiClient {
   }
 }
 
-// Check if demo mode is enabled (set via URL param or localStorage)
-const isDemoMode = () => {
-  const urlParams = new URLSearchParams(window.location.search)
-  const demoParam = urlParams.get('demo')
-  const storedDemo = localStorage.getItem('demoMode')
-
-  if (demoParam !== null) {
-    const enabled = demoParam === 'true' || demoParam === '1'
-    localStorage.setItem('demoMode', enabled.toString())
-    return enabled
-  }
-
-  return storedDemo === 'true'
-}
 
 // Create API client - use mock in demo mode
 const createApiClient = (): ApiClient => {
-  if (isDemoMode()) {
+  // The DEV check is repeated here so a production build drops mockApi entirely.
+  if (import.meta.env.DEV && isDemoMode()) {
     console.log('🎭 Running in DEMO MODE - using mock data')
     return mockApiClient as any
   }

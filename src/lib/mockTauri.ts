@@ -353,17 +353,4 @@ export const initMockTauri = () => {
   }, 1000)
 }
 
-// Check if demo mode is enabled
-export const isDemoMode = () => {
-  const urlParams = new URLSearchParams(window.location.search)
-  const demoParam = urlParams.get('demo')
-  const storedDemo = localStorage.getItem('demoMode')
-
-  if (demoParam !== null) {
-    const enabled = demoParam === 'true' || demoParam === '1'
-    localStorage.setItem('demoMode', enabled.toString())
-    return enabled
-  }
-
-  return storedDemo === 'true'
-}
+export { isDemoMode } from './demoMode'
