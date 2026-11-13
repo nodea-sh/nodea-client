@@ -53,6 +53,14 @@ GPU; otherwise the app runs on the CPU. Fedora and Arch packages, headless VMs,
 Google sign-in without a default browser and uninstalling are covered in
 [Install on Linux](https://www.getnodea.com/docs/getting-started/install-on-linux/).
 
+### Windows
+
+The MSI installs for all users and needs admin rights. It isn't code-signed
+yet, so SmartScreen will likely warn about it; check the download against
+`SHA256SUMS` or with `gh attestation verify` first. GPU inference uses Vulkan,
+and datacenter NVIDIA cards need the driver in WDDM mode (TCC has no Vulkan).
+More in [Install on Windows](https://www.getnodea.com/docs/getting-started/install-on-windows/).
+
 ## Features
 
 - **Share compute** with one toggle, and stop with the same toggle.
