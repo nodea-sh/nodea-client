@@ -33,7 +33,7 @@ pub use probe::PdhProbe;
 
 #[cfg(windows)]
 mod probe {
-    use windows::core::{HSTRING, PCWSTR};
+    use windows::core::PCWSTR;
     use windows::Win32::System::Performance::{
         PdhAddEnglishCounterW, PdhCloseQuery, PdhCollectQueryData, PdhGetFormattedCounterArrayW,
         PdhOpenQueryW, PDH_CSTATUS_VALID_DATA, PDH_FMT_COUNTERVALUE_ITEM_W, PDH_FMT_DOUBLE,
@@ -57,11 +57,16 @@ mod probe {
         pub fn new(pid: u32) -> Self {
             let mut query = PDH_HQUERY(std::ptr::null_mut());
             let mut counter = PDH_HCOUNTER(std::ptr::null_mut());
-            // English path so it works on every display language.
-            let path = HSTRING::from(r"\GPU Engine(*)\Utilization Percentage");
+            // English path so it works on every display language, as a
+            // null-terminated UTF-16 buffer that outlives the call.
+            let path: Vec<u16> = r"\GPU Engine(*)\Utilization Percentage"
+                .encode_utf16()
+                .chain(std::iter::once(0))
+                .collect();
             let ok = unsafe {
                 PdhOpenQueryW(PCWSTR::null(), 0, &mut query) == ERROR_SUCCESS
-                    && PdhAddEnglishCounterW(query, &path, 0, &mut counter) == ERROR_SUCCESS
+                    && PdhAddEnglishCounterW(query, PCWSTR(path.as_ptr()), 0, &mut counter)
+                        == ERROR_SUCCESS
             };
             Self {
                 pid,
