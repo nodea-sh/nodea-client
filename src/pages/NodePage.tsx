@@ -9,6 +9,8 @@ import { AddModelsDialog } from '@/components/AddModelsDialog'
 import { SetupChecklist } from '@/components/SetupChecklist'
 import { PrimaryButton } from '@/components/nocturne'
 import { downloadSummary, formatDuration } from '@/lib/utils'
+import { useNodeaUsage } from '@/hooks/useNodeaUsage'
+import { usageRing, USAGE_TOOLTIP } from '@/lib/usageRing'
 
 export function NodePage() {
   const node = useOutletContext<NodeState>()
@@ -20,6 +22,8 @@ export function NodePage() {
   const [range, setRange] = useState<ChartRange>('1d')
   const [chartStats, setChartStats] = useState<TokenStatsResponse[]>([])
   const [dayStats, setDayStats] = useState<TokenStatsResponse[]>([])
+  const ready = node.phase === 'serving' || node.phase === 'paused'
+  const usage = useNodeaUsage(ready)
 
   useEffect(() => {
     let cancelled = false
@@ -139,10 +143,7 @@ export function NodePage() {
           ? `${node.modelName}, loaded in ${formatDuration(node.loadMs)}.`
           : `${node.modelName} is loaded.`
         : '',
-      // No capacity metric exists yet, so the ring shows state, not a number.
-      ringPct: 100,
-      ringLabel: 'Live',
-      ringCaption: 'serving',
+      ...usageRing(usage),
       ringColor: 'var(--n-accent)',
     },
     'no-models': {
@@ -166,9 +167,7 @@ export function NodePage() {
       body: node.modelName
         ? `${node.modelName} is still in memory. Turn sharing back on and it picks up within seconds.`
         : '',
-      ringPct: 0,
-      ringLabel: '—',
-      ringCaption: 'paused',
+      ...usageRing(usage),
       ringColor: 'var(--n-mute-2)',
     },
   }[node.phase]
@@ -195,7 +194,8 @@ export function NodePage() {
             </div>
           )}
         </div>
-        <CapacityRing pct={hero.ringPct} label={hero.ringLabel} caption={hero.ringCaption} color={hero.ringColor} />
+        <CapacityRing pct={hero.ringPct} label={hero.ringLabel} caption={hero.ringCaption} color={hero.ringColor}
+                      tooltip={ready ? USAGE_TOOLTIP : undefined} />
       </div>
 
       <SetupChecklist node={node} onVisibleChange={setSettingUp} />
@@ -217,10 +217,12 @@ export function NodePage() {
   )
 }
 
-function CapacityRing({ pct, label, caption, color }: { pct: number; label: string; caption: string; color: string }) {
+function CapacityRing({ pct, label, caption, color, tooltip }: {
+  pct: number; label: string; caption: string; color: string; tooltip?: string
+}) {
   const CIRC = 440
   return (
-    <div className="relative h-[168px] w-[168px] flex-none">
+    <div className="relative h-[168px] w-[168px] flex-none" title={tooltip} data-testid="usage-ring">
       <svg width="168" height="168" viewBox="0 0 168 168">
         <circle cx="84" cy="84" r="70" fill="none" stroke="var(--n-line-strong)" strokeWidth="10" />
         <circle cx="84" cy="84" r="70" fill="none" stroke={color} strokeWidth="10" strokeLinecap="round"

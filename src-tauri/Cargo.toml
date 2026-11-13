@@ -30,6 +30,7 @@ dotenv = "0.15"
 [dependencies]
 nodea-proto = { path = "crates/nodea-proto" }
 nodea-inference = { path = "crates/nodea-inference" }
+nodea-usage = { path = "crates/nodea-usage" }
 tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-deep-link = "2"
 # Opens the web console from Settings > Account; scoped in capabilities/.

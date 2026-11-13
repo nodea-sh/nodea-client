@@ -184,6 +184,9 @@ export const mockInvoke = async <T>(command: string, args?: any): Promise<T> => 
     case 'get_device_id':
       return 'device-001' as unknown as T
 
+    case 'nodea_usage':
+      return getForcedUsage() as unknown as T
+
     case 'reveal_model_cache':
       console.log('[Mock Tauri] reveal_model_cache')
       return undefined as unknown as T
@@ -268,6 +271,17 @@ const getForcedUpdate = () => {
     default:
       return { state: 'idle' }
   }
+}
+
+/**
+ * Nodea's usage via ?usage=<0-100|none>[&usageSource=cpu] (with ?demo=true);
+ * an idle GPU otherwise. Used by tests/node.spec.ts.
+ */
+const getForcedUsage = () => {
+  const params = new URLSearchParams(window.location.search)
+  const raw = params.get('usage')
+  const percent = raw === 'none' ? null : Number(raw ?? 0)
+  return { source: params.get('usageSource') === 'cpu' ? 'cpu' : 'gpu', percent }
 }
 
 const applyForcedPhase = (phase: string) => {

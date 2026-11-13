@@ -141,19 +141,12 @@ test.describe('Node figures come from the node (demo mode)', () => {
     await expectNoPlaceholders(page)
   })
 
-  test('serving shows how long the load took, and no made-up capacity', async ({ page }) => {
-    await gotoPhase(page, 'serving')
+  test('serving shows how long the load took, and real usage instead of a made-up capacity', async ({ page }) => {
+    await page.goto('/node?demo=true&phase=serving&usage=42')
 
     await expect(page.getByText('Llama 3.1 8B Instruct, loaded in 12.4s.')).toBeVisible()
-    await expect(page.getByText('Live', { exact: true }).first()).toBeVisible()
+    await expect(page.getByTestId('usage-ring')).toContainText('42%')
     await expectNoPlaceholders(page)
-  })
-
-  test('paused shows no capacity figure', async ({ page }) => {
-    await gotoPhase(page, 'paused')
-
-    await expect(page.getByText('paused', { exact: true })).toBeVisible()
-    await expect(page.getByText('0%', { exact: true })).toHaveCount(0)
   })
 
   test('stalled says the download starts again', async ({ page }) => {
@@ -161,6 +154,62 @@ test.describe('Node figures come from the node (demo mode)', () => {
 
     await expect(page.getByText('The model failed. Retry to start again.')).toBeVisible()
     await expectNoPlaceholders(page)
+  })
+})
+
+test.describe('Node usage ring (demo mode, #317)', () => {
+  const ring = (page: Page) => page.getByTestId('usage-ring')
+
+  for (const pct of [0, 50, 100]) {
+    test(`serving: the ring shows Nodea's own GPU usage (${pct}%)`, async ({ page }) => {
+      await page.goto(`/node?demo=true&phase=serving&usage=${pct}`)
+
+      await expect(ring(page)).toContainText(`${pct}%`)
+      await expect(ring(page)).toContainText('Nodea GPU')
+      await expect(ring(page)).not.toContainText('71%')
+    })
+  }
+
+  test('serving but idle: the ring reads 0%, not a made-up figure', async ({ page }) => {
+    await gotoPhase(page, 'serving')
+
+    await expect(ring(page)).toContainText('0%')
+    await expect(ring(page)).toHaveAttribute('title', /GPU Nodea is using.*Other apps don't count/)
+  })
+
+  test('a platform without a reading shows a dash, never a number', async ({ page }) => {
+    await page.goto('/node?demo=true&phase=serving&usage=none')
+
+    await expect(ring(page)).toContainText('—')
+    await expect(ring(page)).toContainText('Nodea GPU')
+    await expect(ring(page)).not.toContainText('%')
+  })
+
+  test('a CPU-only device shows Nodea CPU usage', async ({ page }) => {
+    await page.goto('/node?demo=true&phase=serving&usage=33&usageSource=cpu')
+
+    await expect(ring(page)).toContainText('33%')
+    await expect(ring(page)).toContainText('Nodea CPU')
+  })
+
+  test('paused still shows Nodea usage, e.g. a request finishing', async ({ page }) => {
+    await page.goto('/node?demo=true&phase=paused&usage=20')
+
+    await expect(ring(page)).toContainText('20%')
+  })
+
+  test('sidebar widget shows no percentage while sharing, even when idle', async ({ page }) => {
+    await gotoPhase(page, 'serving')
+
+    await expect(page.getByText('Sharing', { exact: true }).first()).toBeVisible()
+    await expect(page.getByTestId('widget-value')).toHaveCount(0)
+    await expect(page.locator('button[aria-pressed]')).not.toContainText('100%')
+  })
+
+  test('sidebar widget still shows download progress', async ({ page }) => {
+    await gotoPhase(page, 'downloading')
+
+    await expect(page.getByTestId('widget-value')).toHaveText('62%')
   })
 })
 
