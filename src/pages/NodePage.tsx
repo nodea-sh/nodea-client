@@ -9,7 +9,8 @@ import { AddModelsDialog } from '@/components/AddModelsDialog'
 import { SetupChecklist } from '@/components/SetupChecklist'
 import { PrimaryButton } from '@/components/nocturne'
 import { downloadSummary, formatDuration } from '@/lib/utils'
-import { useNodeaUsage, type NodeaUsage } from '@/hooks/useNodeaUsage'
+import { useNodeaUsage } from '@/hooks/useNodeaUsage'
+import { usageRing, USAGE_TOOLTIP } from '@/lib/usageRing'
 
 export function NodePage() {
   const node = useOutletContext<NodeState>()
@@ -214,18 +215,6 @@ export function NodePage() {
                        }} />
     </div>
   )
-}
-
-const USAGE_TOOLTIP =
-  "How much of this device's GPU Nodea is using right now (the CPU, on a device without a usable GPU). " +
-  "Other apps don't count. Updates every 2 seconds."
-
-/** The serving/paused ring: Nodea's own usage, or a dash without a reading. */
-function usageRing(usage: NodeaUsage | null) {
-  const caption = usage?.source === 'cpu' ? 'Nodea CPU' : 'Nodea GPU'
-  if (usage?.percent == null) return { ringPct: 0, ringLabel: '—', ringCaption: caption }
-  const pct = Math.max(0, Math.min(100, Math.round(usage.percent)))
-  return { ringPct: pct, ringLabel: `${pct}%`, ringCaption: caption }
 }
 
 function CapacityRing({ pct, label, caption, color, tooltip }: {
