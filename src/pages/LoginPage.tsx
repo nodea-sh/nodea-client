@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { apiClient } from '@/lib/api'
@@ -8,6 +8,11 @@ import { apiClient } from '@/lib/api'
 function isEmailNotConfirmedError(message: string): boolean {
   return message.toLowerCase().includes('email not confirmed')
 }
+
+// How long a desktop Google sign-in may wait for the browser before the screen
+// says so. A launcher that fails to start a browser (no default browser on a
+// minimal Linux desktop) still reports success, so silence is the only signal.
+const STILL_WAITING_MS = 15_000
 
 /* Keeps the existing auth calls (invitation sign-up, unconfirmed-email
  * resend, post-login redirect) — only the presentation changes. */
@@ -25,7 +30,12 @@ export function LoginPage() {
     role: string
   } | null>(null)
   const [invitationToken, setInvitationToken] = useState<string | null>(null)
-  const { login, signupWithInvitation, loginWithGoogle } = useAuth()
+  const [googleWaiting, setGoogleWaiting] = useState(false)
+  const [googleSignInUrl, setGoogleSignInUrl] = useState<string | null>(null)
+  const [stillWaiting, setStillWaiting] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const googleCancelled = useRef(false)
+  const { login, signupWithInvitation, loginWithGoogle, cancelGoogleLogin } = useAuth()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const redirectTo = searchParams.get('redirect') || '/node'
@@ -100,16 +110,54 @@ export function LoginPage() {
     }
   }
 
+  useEffect(() => {
+    if (!googleWaiting) return
+    const timer = setTimeout(() => setStillWaiting(true), STILL_WAITING_MS)
+    return () => clearTimeout(timer)
+  }, [googleWaiting])
+
+  const resetGoogleSignIn = () => {
+    setGoogleWaiting(false)
+    setGoogleSignInUrl(null)
+    setStillWaiting(false)
+    setCopied(false)
+    setLoading(false)
+  }
+
   const handleGoogleLogin = async () => {
     setError('')
     setLoading(true)
+    setGoogleWaiting(true)
+    googleCancelled.current = false
     try {
-      await loginWithGoogle()
+      await loginWithGoogle(setGoogleSignInUrl)
       navigate(redirectTo)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Google login failed')
+      if (!googleCancelled.current) {
+        setError(err instanceof Error ? err.message : 'Google login failed')
+      }
     } finally {
-      setLoading(false)
+      resetGoogleSignIn()
+    }
+  }
+
+  const handleCancelGoogle = async () => {
+    googleCancelled.current = true
+    resetGoogleSignIn()
+    try {
+      await cancelGoogleLogin()
+    } catch (err) {
+      console.error('Failed to cancel Google sign-in:', err)
+    }
+  }
+
+  const handleCopySignInUrl = async () => {
+    if (!googleSignInUrl) return
+    try {
+      await navigator.clipboard.writeText(googleSignInUrl)
+      setCopied(true)
+    } catch (err) {
+      console.error('Failed to copy the sign-in link:', err)
     }
   }
 
@@ -178,13 +226,46 @@ export function LoginPage() {
         )}
       </form>
 
-      <div className="mt-3.5 text-[13.5px] leading-none text-[var(--n-text-3)]">
-        or{' '}
-        <button onClick={handleGoogleLogin} disabled={loading}
-                className="text-[var(--n-accent)] hover:text-[var(--n-accent-300)]">
-          continue with Google
-        </button>
-      </div>
+      {googleWaiting ? (
+        <div role="status" aria-label="Google sign-in"
+             className="mt-3.5 flex max-w-[360px] flex-col gap-2 text-[13.5px] leading-[1.45] text-[var(--n-text-3)]">
+          <p className="text-[var(--n-text-2)]">
+            {stillWaiting ? 'Still waiting for the browser…' : 'Finish signing in with Google in your browser.'}
+          </p>
+          {googleSignInUrl && (
+            <>
+              <p>
+                Browser didn't open? Copy this link into a browser on this computer.
+                Signing in from another device won't work.
+              </p>
+              <div className="flex gap-2">
+                <input readOnly value={googleSignInUrl} aria-label="Sign-in link"
+                       onFocus={(e) => e.currentTarget.select()}
+                       className="min-w-0 flex-1 rounded-[8px] border border-[var(--n-border)] bg-[var(--n-sidebar)] px-2.5 py-1.5 text-[13px] text-[var(--n-text-2)] outline-none" />
+                <button type="button" onClick={handleCopySignInUrl}
+                        className="text-[var(--n-accent-400)] hover:text-[var(--n-accent-300)]">
+                  {copied ? 'Copied' : 'Copy link'}
+                </button>
+              </div>
+            </>
+          )}
+          {stillWaiting && (
+            <p>No browser on this computer? Cancel and sign in with your email and password instead.</p>
+          )}
+          <button type="button" onClick={handleCancelGoogle}
+                  className="self-start text-[var(--n-accent)] hover:text-[var(--n-accent-300)]">
+            Cancel
+          </button>
+        </div>
+      ) : (
+        <div className="mt-3.5 text-[13.5px] leading-none text-[var(--n-text-3)]">
+          or{' '}
+          <button onClick={handleGoogleLogin} disabled={loading}
+                  className="text-[var(--n-accent)] hover:text-[var(--n-accent-300)]">
+            continue with Google
+          </button>
+        </div>
+      )}
     </div>
   )
 }

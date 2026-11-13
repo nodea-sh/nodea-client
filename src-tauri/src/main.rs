@@ -2,12 +2,13 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod app_updater;
-mod auth;
 mod grpc_client;
 
 // The node's core lives in the library (see lib.rs) so integration tests can
 // reach it; these re-exports keep `crate::…` paths working in the binary.
-pub use ai4all_tauri::{devlog, model_manager, openai_request, proto, protocol, reconnect, status};
+pub use ai4all_tauri::{
+    auth, devlog, model_manager, openai_request, proto, protocol, reconnect, status,
+};
 
 use std::fs;
 use std::path::PathBuf;
@@ -248,16 +249,27 @@ async fn login_email_password(
     Ok(auth_result.access_token)
 }
 
-/// Login with OAuth provider (google, github, etc.)
+/// Start an OAuth sign-in (google, github, etc.) in the browser. Returns the
+/// sign-in URL, which the login screen offers to copy in case no browser
+/// actually opened; `finish_oauth` then waits for the callback.
 #[tauri::command]
-async fn login_oauth(
+fn start_oauth(provider: String) -> String {
+    auth::start_oauth(&provider)
+}
+
+/// Abandon the OAuth sign-in in progress; a waiting `finish_oauth` fails.
+#[tauri::command]
+fn cancel_oauth() {
+    auth::cancel_oauth();
+}
+
+/// Wait for the OAuth sign-in `start_oauth` began and store its session.
+#[tauri::command]
+async fn finish_oauth(
     state: tauri::State<'_, AppState>,
     app_handle: tauri::AppHandle,
-    provider: String,
 ) -> Result<String, String> {
-    let auth_result = auth::authenticate_oauth(&provider)
-        .await
-        .map_err(|e| e.to_string())?;
+    let auth_result = auth::finish_oauth().await.map_err(|e| e.to_string())?;
 
     // Update in-memory state
     let mut token = state.access_token.lock().await;
@@ -1288,7 +1300,9 @@ fn main() {
         .on_menu_event(handle_menu_event)
         .invoke_handler(tauri::generate_handler![
             login_email_password,
-            login_oauth,
+            start_oauth,
+            finish_oauth,
+            cancel_oauth,
             sign_up,
             logout,
             is_authenticated,

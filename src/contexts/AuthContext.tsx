@@ -35,7 +35,14 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>
   signup: (email: string, password: string) => Promise<void>
   signupWithInvitation: (token: string, email: string, password: string) => Promise<void>
-  loginWithGoogle: () => Promise<void>
+  /**
+   * Sign in with Google. On the desktop, `onSignInUrl` receives the URL the
+   * browser was sent to as soon as the attempt starts, so the screen can offer
+   * it in case no browser actually opened.
+   */
+  loginWithGoogle: (onSignInUrl?: (url: string) => void) => Promise<void>
+  /** Abandon a desktop Google sign-in; the pending `loginWithGoogle` rejects. */
+  cancelGoogleLogin: () => Promise<void>
   logout: () => Promise<void>
   refreshOrganization: () => Promise<void>
   /** An admin deactivated this account: it may not share, but may leave. */
@@ -442,7 +449,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const loginWithGoogle = async () => {
+  const loginWithGoogle = async (onSignInUrl?: (url: string) => void) => {
     if (demoMode) {
       // Auto-succeed in demo mode
       setUser({
@@ -458,7 +465,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       if (isTauriApp()) {
         // Tauri mode: use invoke command
-        const token = await invoke<string>('login_oauth', { provider: 'google' })
+        const signInUrl = await invoke<string>('start_oauth', { provider: 'google' })
+        onSignInUrl?.(signInUrl)
+        const token = await invoke<string>('finish_oauth')
         apiClient.setToken(token)
         await loadUserFromBackend(token)
       } else {
@@ -479,6 +488,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       throw new Error(error as string)
     }
+  }
+
+  const cancelGoogleLogin = async () => {
+    if (isTauriApp()) await invoke('cancel_oauth')
   }
 
   const logout = async () => {
@@ -524,6 +537,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signup,
         signupWithInvitation,
         loginWithGoogle,
+        cancelGoogleLogin,
         logout,
         refreshOrganization,
         accountInactive,
