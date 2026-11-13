@@ -276,6 +276,9 @@ jobs:
 
       - run: npx tsc --noEmit
 
+      # vitest over src/**/*.test.ts[x] (jsdom, mocked API and Tauri).
+      - run: npm run test:unit
+
       - run: npm run build
 
   e2e:
