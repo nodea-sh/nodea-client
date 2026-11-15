@@ -143,6 +143,11 @@ jobs:
           NODEA_REQUIRE_TEST_MODELS: '1'
         run: cargo test -p nodea-inference --features metal
 
+      # Nodea's GPU usage readers (#317) on macOS: the IOKit GPU clients.
+      - name: cargo test -p nodea-usage
+        working-directory: src-tauri
+        run: cargo test -p nodea-usage
+
   # The Vulkan builds the release ships for Linux and Windows. The release
   # workflow only runs from main, so without these a broken Vulkan build would
   # first show up when cutting a release. Runners have no GPU: Linux uses
@@ -256,6 +261,12 @@ jobs:
       - name: One generation from the Vulkan build
         working-directory: src-tauri
         run: cargo run -p nodea-inference --features vulkan --bin nodea-infer -- --model smoke --prompt "Say hello." --format pretty --bench
+
+      # Nodea's GPU usage readers (#317) on a real Windows host: PDH's GPU
+      # Engine counters, as the Node page reads them.
+      - name: cargo test -p nodea-usage
+        working-directory: src-tauri
+        run: cargo test -p nodea-usage
 
   frontend:
     runs-on: ubuntu-latest

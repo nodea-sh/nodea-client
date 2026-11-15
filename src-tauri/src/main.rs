@@ -205,6 +205,8 @@ struct AppState {
     // the download outside the model_manager lock nothing else would stop two
     // switches downloading the same file at once.
     model_switch: Arc<Mutex<()>>,
+    // Created on first use: picking GPU or CPU probes the accelerator.
+    usage_sampler: Arc<std::sync::Mutex<Option<nodea_usage::UsageSampler>>>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -331,6 +333,26 @@ async fn is_authenticated(state: tauri::State<'_, AppState>) -> Result<bool, Str
 #[tauri::command]
 fn get_device_id(state: tauri::State<'_, AppState>) -> String {
     state.device_id.as_ref().clone()
+}
+
+/// How much of this device's GPU (CPU on a CPU-only build) Nodea itself is
+/// using, for the Node page's usage ring. Other apps do not count.
+#[tauri::command]
+async fn nodea_usage(state: tauri::State<'_, AppState>) -> Result<nodea_usage::NodeaUsage, String> {
+    let sampler = state.usage_sampler.clone();
+    tokio::task::spawn_blocking(move || {
+        let mut sampler = sampler.lock().unwrap_or_else(|e| e.into_inner());
+        sampler
+            .get_or_insert_with(|| {
+                let has_gpu = ai4all_tauri::memory::probe()
+                    .accelerator_memory_mb
+                    .is_some();
+                nodea_usage::UsageSampler::new(std::process::id(), has_gpu)
+            })
+            .sample()
+    })
+    .await
+    .map_err(|e| e.to_string())
 }
 
 /// Helper function to update connection status and emit event
@@ -1242,6 +1264,7 @@ fn main() {
                 generations: Arc::new(ai4all_tauri::generations::Generations::new()),
                 model_cache_dir: Arc::new(model_cache_dir),
                 model_switch: Arc::new(Mutex::new(())),
+                usage_sampler: Arc::new(std::sync::Mutex::new(None)),
             });
 
             build_tray(app)?;
@@ -1293,6 +1316,7 @@ fn main() {
             logout,
             is_authenticated,
             get_device_id,
+            nodea_usage,
             auto_login,
             check_stored_auth,
             connect_grpc,
