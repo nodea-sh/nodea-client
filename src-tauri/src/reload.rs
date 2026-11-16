@@ -149,6 +149,32 @@ where
     result
 }
 
+/// Free the resident model: the backend's UnloadModel, sent when no model the
+/// organization permits fits this node. Drains first, as a switch does, so a
+/// straggling generation cannot hold the model for its whole run. Returns
+/// whether a model was resident.
+pub async fn unload<M: ModelSlot>(
+    manager: &Mutex<M>,
+    generations: &Generations,
+    drain: Duration,
+) -> bool {
+    let drained = generations.drain(drain).await;
+    if drained.cancelled > 0 {
+        println!(
+            "Drain timed out: cancelled {} generation(s)",
+            drained.cancelled
+        );
+    }
+    let was_loaded = {
+        let mut model = manager.lock().await;
+        let was_loaded = model.loaded_path().is_some();
+        model.unload();
+        was_loaded
+    };
+    generations.resume().await;
+    was_loaded
+}
+
 /// Load `path`, re-reporting Loading with the elapsed time until it is done.
 async fn timed_load<M: ModelSlot, R: FnMut(ReloadEvent)>(
     model: &mut M,
@@ -362,6 +388,44 @@ mod tests {
             generations.begin("r3").await.is_some(),
             "accepting again once ready"
         );
+    }
+
+    #[tokio::test]
+    async fn unload_frees_the_model_after_in_flight_generations_finish() {
+        let manager = Arc::new(Mutex::new(FakeModel::serving(OLD)));
+        let generations = Arc::new(Generations::new());
+        generations.begin("r1").await.unwrap();
+
+        let unloading = tokio::spawn({
+            let (manager, generations) = (manager.clone(), generations.clone());
+            async move { unload(&*manager, &generations, Duration::from_secs(5)).await }
+        });
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        assert_eq!(manager.lock().await.resident, Some(PathBuf::from(OLD)));
+        assert!(
+            generations.begin("r2").await.is_none(),
+            "draining stops accepting"
+        );
+
+        generations.finish("r1").await;
+
+        assert!(unloading.await.unwrap(), "a model was resident");
+        assert_eq!(manager.lock().await.resident, None);
+        assert!(
+            generations.begin("r3").await.is_some(),
+            "accepting again once unloaded"
+        );
+    }
+
+    #[tokio::test]
+    async fn unload_with_nothing_loaded_is_a_no_op() {
+        let manager = Mutex::new(FakeModel::default());
+        let generations = Generations::new();
+
+        assert!(!unload(&manager, &generations, Duration::from_secs(5)).await);
+        assert_eq!(manager.lock().await.resident, None);
+        assert!(!generations.is_draining().await);
     }
 
     #[tokio::test]
