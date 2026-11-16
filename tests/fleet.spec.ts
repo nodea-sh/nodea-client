@@ -85,4 +85,22 @@ test.describe('Fleet (demo mode)', () => {
     )
     expect(opened).toEqual([CONSOLE_URL])
   })
+
+  test("the sidebar's Docs button opens the docs", async ({ page }) => {
+    await page.addInitScript(() => {
+      ;(window as unknown as { __openedUrls: string[] }).__openedUrls = []
+      window.open = ((url?: string | URL) => {
+        ;(window as unknown as { __openedUrls: string[] }).__openedUrls.push(String(url))
+        return null
+      }) as typeof window.open
+    })
+    await gotoFleet(page)
+
+    await page.getByRole('button', { name: 'Docs' }).click()
+
+    const opened = await page.evaluate(
+      () => (window as unknown as { __openedUrls: string[] }).__openedUrls,
+    )
+    expect(opened).toEqual(['https://getnodea.com/docs/'])
+  })
 })

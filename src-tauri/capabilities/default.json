@@ -10,6 +10,7 @@
       "identifier": "opener:allow-open-url",
       "allow": [
         { "url": "https://app.getnodea.com/*" },
+        { "url": "https://getnodea.com/docs/*" },
         { "url": "https://github.com/nodea-sh/nodea-client/releases/*" }
       ]
     }
