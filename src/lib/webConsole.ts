@@ -10,6 +10,9 @@ import { isTauriApp } from '@/lib/platform'
  */
 export const WEB_CONSOLE_URL = 'https://app.getnodea.com/console/'
 
+// The public docs, on the marketing site.
+export const DOCS_URL = 'https://getnodea.com/docs/'
+
 // The console's detail pages (frontend/src/App.tsx in the web app).
 export const consoleModelUrl = (ref: string) =>
   `${WEB_CONSOLE_URL}models/${encodeURIComponent(ref)}`
@@ -21,7 +24,8 @@ export const consoleDeviceUrl = (ownerId: string, deviceId: string) =>
 
 /* Opens a console URL in the system browser. window.open does nothing in the
  * Tauri webview; the opener plugin does it, within its scope
- * (src-tauri/capabilities/default.json allows app.getnodea.com). */
+ * (src-tauri/capabilities/default.json allows app.getnodea.com and the
+ * docs). */
 export function openInBrowser(url: string) {
   if (isTauriApp()) openUrl(url).catch(console.error)
   else window.open(url, '_blank')
