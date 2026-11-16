@@ -3,8 +3,8 @@
 
 mod support;
 
-use nodea_inference::DEFAULT_SYSTEM_PROMPT;
-use support::{assert_invariants, model, render, req, run};
+use nodea_inference::{LoadOptions, Model, DEFAULT_SYSTEM_PROMPT};
+use support::{assert_invariants, model, model_path, render, req, rt, run, FIXTURE_LOAD};
 
 #[test]
 fn plain_chat_streams_and_stops() {
@@ -106,6 +106,39 @@ fn max_tokens_yields_length() {
     assert_invariants(&request, &run);
     assert_eq!(run.finish_reason(0), "length");
     assert_eq!(run.usage().completion_tokens, 3);
+}
+
+#[test]
+fn unset_max_tokens_runs_until_the_context_is_full() {
+    // Regression guard: an unset max_tokens used to cap replies at 500
+    // tokens, cutting long answers short in the console playground.
+    let Some(path) = model_path("smoke") else {
+        return;
+    };
+    let n_ctx = 1024;
+    let model = rt()
+        .block_on(Model::load(
+            &path,
+            LoadOptions {
+                n_ctx,
+                ..FIXTURE_LOAD
+            },
+        ))
+        .unwrap();
+    // SmolLM2's end-of-generation tokens (<|endoftext|>, <|im_start|>,
+    // <|im_end|>) are banned, so only the context can end the reply.
+    let request = req(
+        r#"{"messages":[{"role":"user","content":"Write a long story about a dragon."}],
+        "temperature":0,"logit_bias":{"0":-100,"1":-100,"2":-100}}"#,
+    );
+
+    let run = run(&model, &request);
+
+    assert_invariants(&request, &run);
+    assert_eq!(run.finish_reason(0), "length");
+    let usage = run.usage();
+    assert!(usage.completion_tokens > 500, "{usage:?}");
+    assert_eq!(usage.prompt_tokens + usage.completion_tokens, n_ctx);
 }
 
 #[test]

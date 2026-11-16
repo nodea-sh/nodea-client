@@ -1,8 +1,6 @@
 //! The engine-neutral vocabulary: what a generation is asked for, and what it
 //! streams back. Nothing in here names an inference engine.
 
-/// Generation cap when the caller does not send `max_tokens`.
-pub const DEFAULT_MAX_TOKENS: usize = 500;
 /// Matches the OpenAI API default when the caller does not send `temperature`.
 pub const DEFAULT_TEMPERATURE: f64 = 1.0;
 /// The system prompt used only when the caller supplied none of its own.

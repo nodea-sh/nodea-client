@@ -414,6 +414,7 @@ pub const CAPABILITY_TESTS: &[(&str, &[&str])] = &[
         &[
             "contract_chat::plain_chat_streams_and_stops",
             "contract_chat::max_tokens_yields_length",
+            "contract_chat::unset_max_tokens_runs_until_the_context_is_full",
             "contract_chat::stop_sequence_is_honoured_and_not_emitted",
         ],
     ),

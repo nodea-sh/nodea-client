@@ -10,9 +10,7 @@ use super::sampling::{self, SamplerConfig};
 use super::stop::StopMatcher;
 use super::utf8::Utf8Assembler;
 use super::{backend, Inner};
-use crate::types::{
-    GenerationOptions, GenerationOutcome, GenerationUsage, TokenUpdate, DEFAULT_MAX_TOKENS,
-};
+use crate::types::{GenerationOptions, GenerationOutcome, GenerationUsage, TokenUpdate};
 use llama_cpp_4::chat::{ChatParams, ToolChoice};
 use llama_cpp_4::context::params::LlamaContextParams;
 use llama_cpp_4::llama_batch::LlamaBatch;
@@ -90,9 +88,12 @@ impl Plan {
             parse: inputs.has_tools() || applied.supports_thinking,
             tool_choice_none: inputs.tool_choice == ToolChoice::None,
             preserved,
+            // Unset means no cap of our own, as in the OpenAI API and
+            // llama.cpp's server: the reply runs until the model stops or
+            // the context is full.
             max_tokens: options
                 .max_tokens
-                .unwrap_or(DEFAULT_MAX_TOKENS)
+                .unwrap_or(usize::MAX)
                 .min(n_ctx - prompt.len()),
             n: options.n.unwrap_or(1).max(1),
             logprobs: options
