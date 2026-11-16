@@ -1340,6 +1340,17 @@ fn main() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app_handle, event| {
+            // Clicking the Dock icon while the app runs. Closing the window
+            // only hides it, so without this the click does nothing and the
+            // tray's "Open Nodea" is the only way back.
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Reopen { .. } = event {
+                if let Some(window) = app_handle.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
+            }
+
             // Every way out ends here: the tray's Quit, Cmd+Q, the OS
             // logging out. Closing the window only hides it, so it does not.
             if let tauri::RunEvent::Exit = event {
