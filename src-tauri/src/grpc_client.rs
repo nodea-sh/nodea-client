@@ -915,15 +915,24 @@ async fn handle_server_message(
             });
         }
         ServerAction::Unload => {
-            // The backend does not send this yet; freeing the model lands with
-            // the scheduler's apply step. Logged so it is visible if it does.
+            // No model the organization permits fits this node (e.g. it
+            // disabled the one this node served). The backend has already
+            // stopped routing here; free the model so the node matches it.
+            // Previously only logged, which left the model resident and the
+            // app showing Ready while the backend counted the node as empty.
             log_message(
                 &state.message_log,
                 app_handle,
                 "UnloadModel",
-                "UnloadModel received; not handled by this build",
+                "UnloadModel received; freeing the model",
             )
             .await;
+
+            let state_clone = state.clone();
+            let app_handle_clone = app_handle.clone();
+            tokio::spawn(async move {
+                handle_unload_model(&state_clone, &app_handle_clone).await;
+            });
         }
         ServerAction::Malformed { request_id } => {
             // Log empty/malformed message but don't crash the connection
@@ -1124,6 +1133,29 @@ fn file_name(path: &std::path::Path) -> String {
         .and_then(|f| f.to_str())
         .unwrap_or_default()
         .to_string()
+}
+
+async fn handle_unload_model(state: &AppState, app_handle: &tauri::AppHandle) {
+    // Serialised with LoadModel, so an unload cannot land mid-switch.
+    let _switch = state.model_switch.lock().await;
+    let was_loaded = reload::unload(
+        &*state.model_manager,
+        &state.generations,
+        ReloadTimeouts::default().drain,
+    )
+    .await;
+    set_model_status(state, app_handle, status::ModelStatus::NoModel).await;
+    log_message(
+        &state.message_log,
+        app_handle,
+        "UnloadModel",
+        if was_loaded {
+            "Model unloaded"
+        } else {
+            "No model was loaded"
+        },
+    )
+    .await;
 }
 
 async fn handle_load_model(
