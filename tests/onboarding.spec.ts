@@ -1,21 +1,19 @@
 import { test, expect } from '@playwright/test'
 
 /**
- * First run, in demo mode: an admin names the organization, picks its first
- * model, and finishes the setup checklist on the Node page, all without the
- * web console. `?setup=fresh` is a brand-new organization (no models, no
- * keys, nothing done); `?account=orgless` a user with no organization yet.
+ * First run, in demo mode: a new admin gets an organization named after them,
+ * picks its first model, and finishes the setup checklist on the Node page,
+ * all without the web console. `?setup=fresh` is a brand-new organization (no
+ * models, no keys, nothing done); `?account=new` an account that never had an
+ * organization, and `?account=orgless` one that has just left theirs.
  */
 test.describe('In-app onboarding (demo mode)', () => {
-  test('an admin goes from naming the organization to a first model', async ({ page }) => {
-    await page.goto('/node?demo=true&account=orgless&setup=fresh')
-    await expect(page).toHaveURL(/\/onboarding$/)
-
-    await page.getByLabel('Organization Name').fill('Acme')
-    await page.getByRole('button', { name: 'Continue' }).click()
+  test('a new admin gets an organization without naming it, then picks a first model', async ({ page }) => {
+    await page.goto('/node?demo=true&account=new&setup=fresh')
 
     await expect(page).toHaveURL(/\/onboarding\/model/)
     await expect(page.getByRole('heading', { name: 'Pick a model for your organization' })).toBeVisible()
+    await expect(page.getByText("Demo User's Organization")).toBeVisible()
 
     // Suggestions fit this (mock 16 GB) Mac, and the first is preselected so
     // one click is enough.
@@ -38,8 +36,9 @@ test.describe('In-app onboarding (demo mode)', () => {
 
     await page.goto('/node?demo=true&account=orgless&setup=fresh&phase=serving')
     await expect(page).toHaveURL(/\/onboarding$/)
-    await page.getByLabel('Organization Name').fill('Acme')
-    await page.getByRole('button', { name: 'Continue' }).click()
+    // Having just left one, the user is asked before a new one is created.
+    await expect(page.getByText("You're no longer in Demo Organization")).toBeVisible()
+    await page.getByRole('button', { name: 'Create my organization' }).click()
     await expect(page).toHaveURL(/\/onboarding\/model/)
     commands.length = 0
 

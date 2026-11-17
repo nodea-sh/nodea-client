@@ -148,12 +148,6 @@ interface InvitationCheckResponse {
   error?: string
 }
 
-interface CheckNameAvailabilityResponse {
-  available: boolean
-  suggested_slug: string
-  error?: string
-}
-
 interface SignupResponse {
   message: string
   email: string
@@ -475,16 +469,11 @@ class ApiClient {
   }
 
   // Onboarding
-  async checkOrganizationName(name: string): Promise<CheckNameAvailabilityResponse> {
-    return this.fetch<CheckNameAvailabilityResponse>(
-      `/v1/onboarding/check-name?name=${encodeURIComponent(name)}`
-    )
-  }
-
-  async createOrganizationOnboarding(name: string): Promise<{ organization: Organization }> {
+  // The backend names the organization after the user.
+  async createOrganizationOnboarding(): Promise<{ organization: Organization }> {
     return this.fetch<{ organization: Organization }>('/v1/onboarding/organization', {
       method: 'POST',
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({}),
     })
   }
 
@@ -606,7 +595,6 @@ export type {
   OrganizationMember,
   UserInvitation,
   InvitationCheckResponse,
-  CheckNameAvailabilityResponse,
   SignupResponse,
   ConfirmEmailResponse,
 }
