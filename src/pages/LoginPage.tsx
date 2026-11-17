@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { apiClient } from '@/lib/api'
+import type { PasswordResetLoginState } from './ResetPasswordPage'
 
 // Only accounts created before signups could log in unconfirmed still get
 // this from Supabase; confirming (or resending) the link unblocks them.
@@ -12,7 +13,9 @@ function isEmailNotConfirmedError(message: string): boolean {
 /* Keeps the existing auth calls (invitation sign-up, unconfirmed-email
  * resend, post-login redirect) — only the presentation changes. */
 export function LoginPage() {
-  const [email, setEmail] = useState('')
+  // Set when arriving from a finished password reset.
+  const resetState = useLocation().state as PasswordResetLoginState | null
+  const [email, setEmail] = useState(resetState?.email ?? '')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -129,6 +132,11 @@ export function LoginPage() {
           This account was deleted. This device stopped sharing compute.
         </p>
       )}
+      {resetState?.passwordReset && (
+        <p role="status" className="mb-3 max-w-[360px] text-[14.5px] leading-[1.5] text-[var(--n-text-2)]">
+          Your password was changed. Sign in with your new password.
+        </p>
+      )}
       <p className="mb-[22px] max-w-[360px] text-[14.5px] leading-[1.5] text-[var(--n-text-3)]">
         {isInvitedSignup
           ? <>Joining <strong className="text-[var(--n-text-2)]">{invitationDetails?.organizationName}</strong> as {invitationDetails?.role}.</>
@@ -173,6 +181,11 @@ export function LoginPage() {
             Don't have an account?{' '}
             <Link to="/signup" className="font-medium text-[var(--n-accent-400)] hover:text-[var(--n-accent-300)]">
               Sign up
+            </Link>
+            {' · '}
+            <Link to="/forgot-password" state={{ email }}
+                  className="font-medium text-[var(--n-accent-400)] hover:text-[var(--n-accent-300)]">
+              Forgot password?
             </Link>
           </p>
         )}

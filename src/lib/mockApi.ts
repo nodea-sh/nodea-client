@@ -688,6 +688,24 @@ export class MockApiClient {
     return { message: 'Confirmation email resent' }
   }
 
+  // Forgot password
+  async requestPasswordReset(_email: string): Promise<{ message: string }> {
+    await delay(300)
+    console.log('Mock: Password reset email sent')
+    return { message: 'If an account exists for this email, a reset link is on its way' }
+  }
+
+  async checkPasswordReset(_token: string): Promise<{ email: string }> {
+    await delay(200)
+    return { email: 'demo@getnodea.com' }
+  }
+
+  async resetPassword(_token: string, _password: string): Promise<{ message: string; email: string }> {
+    await delay(300)
+    console.log('Mock: Password reset')
+    return { message: 'Password updated', email: 'demo@getnodea.com' }
+  }
+
   // Onboarding
   async createOrganizationOnboarding(): Promise<{ organization: Organization }> {
     await delay(500)
