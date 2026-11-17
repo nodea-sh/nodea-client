@@ -8,6 +8,7 @@ const { invoke, apiClient } = vi.hoisted(() => ({
   apiClient: {
     setToken: vi.fn(),
     setAccountDeletedHandler: vi.fn(),
+    setTokenRefresher: vi.fn(),
     getMe: vi.fn(),
     getOrganization: vi.fn(),
     getOrganizationMembers: vi.fn(),

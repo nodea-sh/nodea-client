@@ -966,6 +966,18 @@ pub(crate) async fn refresh_access_token_into_state(
     }
 }
 
+/// Exchanges the stored refresh token for a new access token. The frontend
+/// calls this when the backend refuses its token (it expires after an hour),
+/// so a long-running session keeps working without reopening the app.
+/// Returns None when the refresh fails.
+#[tauri::command]
+async fn refresh_session(
+    state: tauri::State<'_, AppState>,
+    app_handle: tauri::AppHandle,
+) -> Result<Option<String>, String> {
+    Ok(refresh_access_token_into_state(&state, &app_handle).await)
+}
+
 /// Auto-login: Check if there are stored tokens and validate them
 /// Returns the access token if valid, None otherwise
 #[tauri::command]
@@ -1318,6 +1330,7 @@ fn main() {
             get_device_id,
             nodea_usage,
             auto_login,
+            refresh_session,
             check_stored_auth,
             connect_grpc,
             disconnect_grpc,

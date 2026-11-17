@@ -4,6 +4,7 @@ import { apiClient, type DeviceResponse } from '@/lib/api'
 import { isDemoMode, mockInvoke } from '@/lib/mockTauri'
 import { WEB_CONSOLE_URL, consoleDeviceUrl } from '@/lib/webConsole'
 import { ConsoleLink } from '@/components/ConsoleLink'
+import { useApiToken } from '@/hooks/useApiToken'
 
 /* Open to every member of the organization: the roster it shows is the
  * organization's, not the signed-in user's, so there is nothing here a
@@ -11,6 +12,7 @@ import { ConsoleLink } from '@/components/ConsoleLink'
 export function FleetPage() {
   const [devices, setDevices] = useState<DeviceResponse[]>([])
   const [thisDeviceId, setThisDeviceId] = useState<string | null>(null)
+  const token = useApiToken()
 
   useEffect(() => {
     const es = apiClient.createFleetStream()
@@ -23,7 +25,7 @@ export function FleetPage() {
       }
     }
     return () => es.close()
-  }, [])
+  }, [token])
 
   useEffect(() => {
     const demo = isDemoMode()

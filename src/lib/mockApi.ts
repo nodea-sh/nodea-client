@@ -384,6 +384,11 @@ export class MockApiClient {
     return this.token
   }
 
+  // Demo mode never refreshes its token.
+  onTokenChange = (_listener: () => void): (() => void) => () => {}
+
+  setTokenRefresher(_refresher: (() => Promise<string | null>) | null) {}
+
   async getApiKeys(): Promise<ApiKeyResponse[]> {
     await delay(300)
     return [...this.apiKeys]

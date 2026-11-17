@@ -185,6 +185,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Access tokens expire after an hour. The app is set up once, so a request
+  // refused with an expired token gets a new one from the refresh token -
+  // through the Rust host, which owns the stored tokens, or the Supabase SDK
+  // in web mode - and is retried.
+  useEffect(() => {
+    if (demoMode) return
+    apiClient.setTokenRefresher(async () => {
+      if (isTauriApp()) return invoke<string | null>('refresh_session')
+      const { data, error } = await supabase.auth.refreshSession()
+      if (error) throw error
+      return data.session?.access_token ?? null
+    })
+    return () => apiClient.setTokenRefresher(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   // Membership changes made elsewhere: leaving or being removed in the web
   // console, an admin deactivating the account, deleting it. Checked on load,
   // whenever the window regains focus, and every minute.

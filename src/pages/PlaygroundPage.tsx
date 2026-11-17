@@ -15,6 +15,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { apiClient } from '@/lib/api'
+import { useApiToken } from '@/hooks/useApiToken'
 import { StreamingMarkdown } from '@/components/StreamingMarkdown'
 
 interface Message {
@@ -39,6 +40,7 @@ export function PlaygroundPage() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const eventSourceRef = useRef<EventSource | null>(null)
+  const token = useApiToken()
 
   useEffect(() => {
     console.log('[Playground] Connecting to models stream...')
@@ -76,11 +78,12 @@ export function PlaygroundPage() {
     return () => {
       console.log('[Playground] Closing models stream')
       modelsStream.close()
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close()
-      }
     }
-  }, [])
+  }, [token])
+
+  // Apart from the models stream: a reply in progress keeps its stream when
+  // the token is refreshed.
+  useEffect(() => () => eventSourceRef.current?.close(), [])
 
   useEffect(() => {
     scrollToBottom()
