@@ -239,13 +239,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         role: demoRole(),
         organization_id: 1,
       })
-      setOrganization({
-        id: 1,
-        name: 'Demo Organization',
-        slug: 'demo-org',
-        member_count: 5,
-        created_at: new Date().toISOString(),
-      })
+      // ?account=new is an account that has never had an organization (see
+      // mockApi.ts), which onboarding creates.
+      if (new URLSearchParams(window.location.search).get('account') !== 'new') {
+        setOrganization({
+          id: 1,
+          name: 'Demo Organization',
+          slug: 'demo-org',
+          member_count: 5,
+          created_at: new Date().toISOString(),
+        })
+      }
       setIsLoading(false)
       console.log('[checkAuth] Demo mode setup complete')
       return

@@ -1,18 +1,19 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { apiClient } from '../lib/api'
 import { Button } from '../components/ui/button'
-import { Input } from '../components/ui/input'
 import { Card } from '../components/ui/card'
 import { toast } from 'sonner'
 
+/* A new user's organization is created without asking for a name: the backend
+ * names it after them ("{name}'s Organization"), and they can rename it later.
+ * Someone who just left an organization is asked first, since they may rather
+ * open an invitation. */
 export function OnboardingPage() {
-  const [organizationName, setOrganizationName] = useState('')
-  const [isChecking, setIsChecking] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
-  const [suggestedSlug, setSuggestedSlug] = useState('')
-  const [validationError, setValidationError] = useState('')
+  const [error, setError] = useState('')
+  const started = useRef(false)
   const { refreshOrganization, leftOrganizationName, organization } = useAuth()
   const navigate = useNavigate()
 
@@ -26,53 +27,12 @@ export function OnboardingPage() {
     }
   }, [organization, isCreating, navigate])
 
-  // Debounced name availability check
-  useEffect(() => {
-    if (!organizationName.trim()) {
-      setSuggestedSlug('')
-      setValidationError('')
-      return
-    }
-
-    const timer = setTimeout(async () => {
-      setIsChecking(true)
-      try {
-        const result = await apiClient.checkOrganizationName(organizationName)
-        setSuggestedSlug(result.suggested_slug)
-
-        if (!result.available) {
-          setValidationError(result.error || 'Name is not available')
-        } else {
-          setValidationError('')
-        }
-      } catch (error) {
-        console.error('Name check failed:', error)
-        setValidationError('Failed to check name availability')
-      } finally {
-        setIsChecking(false)
-      }
-    }, 500)
-
-    return () => clearTimeout(timer)
-  }, [organizationName])
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-
-    if (validationError) {
-      toast.error('Please fix validation errors')
-      return
-    }
-
-    if (!organizationName.trim()) {
-      toast.error('Please enter an organization name')
-      return
-    }
-
+  const createOrganization = useCallback(async () => {
+    setError('')
     setIsCreating(true)
 
     try {
-      await apiClient.createOrganizationOnboarding(organizationName)
+      await apiClient.createOrganizationOnboarding()
 
       // Refresh organization in auth context
       await refreshOrganization()
@@ -80,17 +40,30 @@ export function OnboardingPage() {
       // Clear the "just signed up" flag
       sessionStorage.removeItem('just_signed_up')
 
-      toast.success('Organization created')
       // The creator is the organization's admin, and a new organization has
       // no models yet: pick one next, so this Mac has something to serve.
       navigate('/onboarding/model')
-    } catch (error: any) {
-      console.error('Failed to create organization:', error)
-      toast.error(error.message || 'Failed to create organization')
-    } finally {
+    } catch (err) {
+      // Already in one: this page showed while the organization was still
+      // loading. Nothing to set up.
+      if ((err as { status?: number }).status === 422) {
+        await refreshOrganization()
+        navigate('/node', { replace: true })
+        return
+      }
+      console.error('Failed to create organization:', err)
+      const message = err instanceof Error ? err.message : 'Failed to create organization'
+      setError(message)
+      toast.error(message)
       setIsCreating(false)
     }
-  }
+  }, [refreshOrganization, navigate])
+
+  useEffect(() => {
+    if (organization || leftOrganizationName || started.current) return
+    started.current = true
+    void createOrganization()
+  }, [organization, leftOrganizationName, createOrganization])
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -100,7 +73,7 @@ export function OnboardingPage() {
             <>
               <h1 className="text-2xl font-bold mb-2">You're no longer in {leftOrganizationName}</h1>
               <p className="text-muted-foreground">
-                This device stopped sharing compute. Create an organization below, or open an
+                This device stopped sharing compute. Create an organization of your own, or open an
                 invitation link to join one.
               </p>
             </>
@@ -108,55 +81,21 @@ export function OnboardingPage() {
             <>
               <h1 className="text-2xl font-bold mb-2">Welcome to Nodea!</h1>
               <p className="text-muted-foreground">
-                Let's set up your organization to get started
+                {error ? "We couldn't set up your organization" : 'Setting up your organization…'}
               </p>
             </>
           )}
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label htmlFor="orgName" className="block text-sm font-medium mb-1">
-              Organization Name
-            </label>
-            <Input
-              id="orgName"
-              type="text"
-              value={organizationName}
-              onChange={(e) => setOrganizationName(e.target.value)}
-              placeholder="e.g., Acme Corporation"
-              disabled={isCreating}
-              className={validationError ? 'border-destructive' : ''}
-              maxLength={255}
-            />
+        {error && (
+          <p role="alert" className="text-sm text-destructive mb-4">{error}</p>
+        )}
 
-            {isChecking && (
-              <p className="text-sm text-muted-foreground mt-1">
-                Checking availability...
-              </p>
-            )}
-
-            {validationError && (
-              <p className="text-sm text-destructive mt-1">
-                {validationError}
-              </p>
-            )}
-
-            {suggestedSlug && !validationError && (
-              <p className="text-sm text-muted-foreground mt-1">
-                URL: <span className="font-mono">{suggestedSlug}</span>
-              </p>
-            )}
-          </div>
-
-          <Button
-            type="submit"
-            className="w-full"
-            disabled={isCreating || isChecking || !!validationError || !organizationName.trim()}
-          >
-            {isCreating ? 'Creating...' : 'Continue'}
+        {(leftOrganizationName || error) && (
+          <Button className="w-full" onClick={() => void createOrganization()} disabled={isCreating}>
+            {isCreating ? 'Creating...' : leftOrganizationName ? 'Create my organization' : 'Try again'}
           </Button>
-        </form>
+        )}
       </Card>
     </div>
   )
