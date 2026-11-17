@@ -188,9 +188,50 @@ class ApiError extends Error {
 class ApiClient {
   private token: string | null = null
   private accountDeletedHandler: (() => void) | null = null
+  private tokenRefresher: (() => Promise<string | null>) | null = null
+  private refreshing: Promise<string | null> | null = null
+  private tokenListeners = new Set<() => void>()
 
   setToken(token: string) {
+    if (token === this.token) return
     this.token = token
+    this.tokenListeners.forEach((listener) => listener())
+  }
+
+  getToken(): string | null {
+    return this.token
+  }
+
+  // Streams put the token in their URL, so they reopen when it changes.
+  onTokenChange = (listener: () => void): (() => void) => {
+    this.tokenListeners.add(listener)
+    return () => this.tokenListeners.delete(listener)
+  }
+
+  // How to get a new access token when the backend refuses the current one
+  // (it expires after an hour). Resolves to null when that is not possible.
+  setTokenRefresher(refresher: (() => Promise<string | null>) | null) {
+    this.tokenRefresher = refresher
+  }
+
+  // Requests refused together share one refresh.
+  private refreshToken(): Promise<string | null> {
+    if (!this.tokenRefresher) return Promise.resolve(null)
+    if (!this.refreshing) {
+      this.refreshing = this.tokenRefresher()
+        .then((token) => {
+          if (token) this.setToken(token)
+          return token
+        })
+        .catch((e) => {
+          console.error('[Api] Token refresh failed:', e)
+          return null
+        })
+        .finally(() => {
+          this.refreshing = null
+        })
+    }
+    return this.refreshing
   }
 
   // Called when any request is refused because the account was deleted - a
@@ -202,7 +243,8 @@ class ApiClient {
 
   private async fetch<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
+    retried = false
   ): Promise<T> {
     const startTime = performance.now()
     const method = options.method || 'GET'
@@ -212,8 +254,9 @@ class ApiClient {
       'Content-Type': 'application/json',
     }
 
-    if (this.token) {
-      headers['Authorization'] = `Bearer ${this.token}`
+    const sentToken = this.token
+    if (sentToken) {
+      headers['Authorization'] = `Bearer ${sentToken}`
     }
 
     // Merge with options headers if provided
@@ -224,6 +267,7 @@ class ApiClient {
     let responseBody: string | undefined
     let statusCode: number
     let error: Error | undefined
+    let tokenRefused = false
 
     try {
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
@@ -248,6 +292,7 @@ class ApiClient {
           code
         )
         if (response.status === 401 && code === 'account_deleted') this.accountDeletedHandler?.()
+        else if (response.status === 401 && sentToken && !retried) tokenRefused = true
       } else {
         const responseText = await response.text()
         responseBody = responseText
@@ -275,6 +320,13 @@ class ApiClient {
     // Log the failed API call (only in dev mode)
     if (import.meta.env.DEV) {
       this.logApiCall(method, endpoint, statusCode, requestBody, responseBody, duration)
+    }
+
+    // An expired token: retry once with a new one. A request sent before
+    // another one's refresh finished just retries with the new token.
+    if (tokenRefused) {
+      const token = this.token !== sentToken ? this.token : await this.refreshToken()
+      if (token) return this.fetch<T>(endpoint, options, true)
     }
 
     throw error!
