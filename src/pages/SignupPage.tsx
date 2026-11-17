@@ -6,19 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useAuth } from '@/contexts/AuthContext'
-
-function validatePassword(password: string): string | null {
-  if (password.length < 8) {
-    return 'Password must be at least 8 characters long'
-  }
-  if (!/[A-Za-z]/.test(password)) {
-    return 'Password must contain at least 1 letter'
-  }
-  if (!/\d/.test(password)) {
-    return 'Password must contain at least 1 digit'
-  }
-  return null
-}
+import { validatePassword } from '@/lib/validation'
 
 export function SignupPage() {
   const [email, setEmail] = useState('')
