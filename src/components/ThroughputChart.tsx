@@ -5,6 +5,14 @@ export type ChartRange = TokenStatsRange
 
 const AXIS_LABELS = 5
 
+/** Bucket width in minutes per range (backend/repositories/events.py TOKENS_TS_RANGES). */
+const BUCKET_MINUTES: Record<ChartRange, number> = { '1h': 2, '1d': 60, '1w': 360 }
+
+const compact = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 })
+/** Whole tokens unless the rate is low enough that a decimal matters. */
+const formatRate = (rate: number) =>
+  new Intl.NumberFormat('en-US', { maximumFractionDigits: rate < 10 ? 1 : 0 }).format(rate)
+
 /** value 0-100 → ramp step */
 function barColor(pct: number) {
   if (pct > 88) return 'var(--n-bar-6)'
@@ -15,10 +23,22 @@ function barColor(pct: number) {
   return 'var(--n-bar-1)'
 }
 
-/** Each bucket's share of the busiest one, 0-100. */
-function heights(stats: TokenStatsResponse[]): number[] {
-  const max = Math.max(...stats.map((s) => s.value), 1)
-  return stats.map((s) => Math.round((s.value / max) * 100))
+/** Each bucket's tokens averaged over its width in minutes. */
+export function perMinute(stats: TokenStatsResponse[], range: ChartRange): number[] {
+  return stats.map((s) => s.value / BUCKET_MINUTES[range])
+}
+
+/** Smallest 1, 2 or 5 × 10^k at or above `max`, so axis ticks are round numbers. */
+export function niceMax(max: number): number {
+  if (max <= 0) return 1
+  const pow = 10 ** Math.floor(Math.log10(max))
+  return ([1, 2, 5, 10].find((m) => m * pow >= max) ?? 10) * pow
+}
+
+function bucketLabel(date: string, range: ChartRange): string {
+  const d = new Date(date)
+  const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
+  return range === '1w' ? `${d.toLocaleDateString([], { weekday: 'short' })} ${time}` : time
 }
 
 function axisLabel(t: number, last: number, range: ChartRange): string {
@@ -52,7 +72,9 @@ export function ThroughputChart({ stats, range, onRangeChange }: {
   range: ChartRange
   onRangeChange: (range: ChartRange) => void
 }) {
-  const bars = useMemo(() => heights(stats), [stats])
+  const rates = useMemo(() => perMinute(stats, range), [stats, range])
+  const top = niceMax(Math.max(...rates, 0))
+  const busiest = Math.max(...rates, 1)
   const labels = useMemo(() => axisLabels(stats, range), [stats, range])
 
   return (
@@ -76,15 +98,36 @@ export function ThroughputChart({ stats, range, onRangeChange }: {
         </span>
       </div>
 
-      <div className="mt-3.5 flex h-24 items-end gap-[3px]">
-        {bars.map((pct, i) => (
-          <div key={i} data-testid="throughput-bar"
-               className="flex-1 rounded-t-[2px] transition-[height] duration-150 ease-out"
-               style={{ height: `${Math.max(pct, 2)}%`, background: barColor(pct) }} />
-        ))}
+      <div className="mt-3.5 flex gap-2">
+        <div data-testid="throughput-axis"
+             className="flex h-24 w-9 shrink-0 flex-col justify-between text-right text-[11px] leading-none text-[var(--n-text-4)] tabular-nums">
+          {[top, top / 2, 0].map((v) => <span key={v} className="-my-[5px]">{compact.format(v)}</span>)}
+        </div>
+
+        <div className="relative flex h-24 flex-1 items-end gap-[3px]">
+          {[0, 50, 100].map((p) => (
+            <div key={p} className="pointer-events-none absolute inset-x-0 border-t border-dashed border-[var(--n-line-strong)]"
+                 style={{ bottom: `${p}%` }} />
+          ))}
+          {rates.map((rate, i) => {
+            const align = i < 3 ? 'left-0' : i > rates.length - 4 ? 'right-0' : 'left-1/2 -translate-x-1/2'
+            return (
+              <div key={i} className="group relative flex h-full flex-1 items-end">
+                <div data-testid="throughput-bar" aria-label={`${formatRate(rate)} tokens / min at ${bucketLabel(stats[i].date, range)}`}
+                     className="w-full rounded-t-[2px] transition-[height,filter] duration-150 ease-out group-hover:brightness-125"
+                     style={{ height: `${Math.max((rate / top) * 100, 2)}%`, background: barColor((rate / busiest) * 100) }} />
+                <div role="tooltip"
+                     className={`pointer-events-none absolute top-1 z-10 hidden whitespace-nowrap rounded-[var(--n-radius-sm)] bg-[var(--n-raised)] px-2 py-1.5 text-[12px] leading-none shadow-[var(--n-shadow-md)] group-hover:block ${align}`}>
+                  <div className="font-semibold text-[var(--n-text)] tabular-nums">{formatRate(rate)} tok/min</div>
+                  <div className="mt-1 text-[var(--n-text-4)]">{bucketLabel(stats[i].date, range)}</div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
       </div>
 
-      <div className="mt-2 flex justify-between text-[12px] leading-none text-[var(--n-text-3)]">
+      <div className="mt-2 flex justify-between pl-11 text-[12px] leading-none text-[var(--n-text-3)]">
         {labels.map((l, i) => <span key={i}>{l}</span>)}
       </div>
     </div>

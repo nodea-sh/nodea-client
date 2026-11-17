@@ -229,4 +229,16 @@ test.describe('Node throughput chart (demo mode)', () => {
     await page.getByRole('button', { name: '1w', exact: true }).click()
     await expect(bars).toHaveCount(29) // 6-hour buckets
   })
+
+  test('labels the value axis and shows each bar\'s rate on hover', async ({ page }) => {
+    await gotoPhase(page, 'serving')
+
+    await expect(page.getByTestId('throughput-axis')).toContainText('0')
+    const tooltip = page.getByRole('tooltip').filter({ hasText: 'tok/min' })
+    await expect(tooltip.first()).toBeHidden()
+
+    await page.getByTestId('throughput-bar').nth(10).hover()
+    await expect(tooltip.filter({ visible: true })).toHaveCount(1)
+    await expect(tooltip.filter({ visible: true })).toContainText(/[\d,.]+ tok\/min/)
+  })
 })
