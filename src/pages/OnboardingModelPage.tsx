@@ -9,7 +9,7 @@ import { useMemoryBudget } from '@/hooks/useMemoryBudget'
 import { apiClient } from '@/lib/api'
 import { formatMemory, modelDisplayName, modelTagline, recommend } from '@/lib/recommendedModels'
 
-/* Step 2 of setting up an organization: a new organization has no models,
+/* Setting up a new organization: a new organization has no models,
  * so its Macs have nothing to serve until an admin adds one. Offer a few that
  * fit this Mac and add the chosen one in a click. */
 export function OnboardingModelPage() {
@@ -62,7 +62,7 @@ export function OnboardingModelPage() {
       <div className="n-drag fixed inset-x-0 top-0 h-9" data-tauri-drag-region />
       <div className="w-full max-w-[560px]">
         <div className="text-[13px] font-semibold uppercase tracking-[0.09em] text-[var(--n-accent-400)]">
-          Step 2 of 2{organization ? ` · ${organization.name}` : ''}
+          {organization ? organization.name : 'Your organization'}
         </div>
         <h1 className="mt-3 text-[30px] font-semibold leading-[1.15] tracking-[-0.02em] text-[var(--n-text)]">
           Pick a model for your organization
