@@ -266,6 +266,7 @@ const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
  * The demo account's state, pinned with ?account=<state> (with ?demo=true) so
  * tests can reach each one directly:
  *   orgless      - no organization (left it, or never joined)
+ *   new          - a new account that has never had an organization
  *   inactive     - an admin deactivated the account
  *   deleted      - the account was deleted (every call refused)
  *   only-admin   - the only admin, so leaving is blocked
@@ -283,11 +284,11 @@ const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
  */
 const demoParam = (name: string) => new URLSearchParams(window.location.search).get(name)
 
-type DemoAccountState = 'member' | 'orgless' | 'inactive' | 'deleted' | 'only-admin' | 'last-member'
+type DemoAccountState = 'member' | 'orgless' | 'new' | 'inactive' | 'deleted' | 'only-admin' | 'last-member'
 
 const demoAccountState = (): DemoAccountState => {
   const value = new URLSearchParams(window.location.search).get('account')
-  return (['orgless', 'inactive', 'deleted', 'only-admin', 'last-member'] as const).find((s) => s === value) ?? 'member'
+  return (['orgless', 'new', 'inactive', 'deleted', 'only-admin', 'last-member'] as const).find((s) => s === value) ?? 'member'
 }
 
 // Shaped like the real ApiError (status + code) without importing api.ts,
@@ -325,7 +326,7 @@ export class MockApiClient {
       this.accountDeletedHandler?.()
       throw demoApiError('Account deleted', 401, 'account_deleted')
     }
-    const inOrg = state !== 'orgless'
+    const inOrg = state !== 'orgless' && state !== 'new'
     return {
       uuid: 'demo-user-uuid',
       email: 'demo@getnodea.com',
@@ -688,19 +689,11 @@ export class MockApiClient {
   }
 
   // Onboarding
-  async checkOrganizationName(name: string): Promise<{ available: boolean; suggested_slug: string; error?: string }> {
-    await delay(300)
-    // In mock mode, always return available with a slugified name
-    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
-    return {
-      available: true,
-      suggested_slug: slug,
-    }
-  }
-
-  async createOrganizationOnboarding(name: string): Promise<{ organization: Organization }> {
+  async createOrganizationOnboarding(): Promise<{ organization: Organization }> {
     await delay(500)
-    // In mock mode, just update the existing organization
+    // In mock mode, just update the existing organization, named after the
+    // demo user as the backend would.
+    const name = "Demo User's Organization"
     this.organization.name = name
     this.left = false
     this.joined = true
