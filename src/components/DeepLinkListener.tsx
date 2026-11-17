@@ -4,15 +4,17 @@ import { listen } from '@tauri-apps/api/event'
 import { isTauriApp } from '@/lib/platform'
 
 /**
- * Bridges nodea:// deep links (opened from invitation/confirm-email
- * emails) into the React Router. The Rust side (src-tauri/src/main.rs)
- * registers the OS-level scheme handler and forwards incoming links here
- * via the "scheme-request-received" event.
+ * Bridges nodea:// deep links (opened from emails) into the React Router.
+ * The Rust side (src-tauri/src/main.rs) registers the OS-level scheme
+ * handler and forwards incoming links here via the
+ * "scheme-request-received" event.
  *
- * FRONTEND_BASE_URL is "nodea://" in production, so a link built as
- * `${FRONTEND_BASE_URL}/confirm-email/${token}` becomes
- * "nodea:///confirm-email/<token>" - an empty host with the app route as
- * the URL's pathname, which is what we navigate to below.
+ * The backend builds the password reset links this app asks for from
+ * DESKTOP_FRONTEND_BASE_URL, "nodea://" in production, so
+ * `${DESKTOP_FRONTEND_BASE_URL}/reset-password/${token}` becomes
+ * "nodea:///reset-password/<token>" - an empty host with the app route as
+ * the URL's pathname, which is what we navigate to below. Its other links
+ * (FRONTEND_BASE_URL) open the web console.
  */
 export function DeepLinkListener() {
   const navigate = useNavigate()
