@@ -563,6 +563,27 @@ class ApiClient {
       body: JSON.stringify({ email }),
     })
   }
+
+  // Forgot password - public, the user cannot sign in. The emailed link is a
+  // nodea:// deep link back into this app (client: 'desktop').
+  async requestPasswordReset(email: string): Promise<{ message: string }> {
+    return this.fetch<{ message: string }>('/v1/password-reset', {
+      method: 'POST',
+      body: JSON.stringify({ email, client: 'desktop' }),
+    })
+  }
+
+  // Answers 410 for a link that is unknown, used, replaced or expired.
+  async checkPasswordReset(token: string): Promise<{ email: string }> {
+    return this.fetch<{ email: string }>(`/v1/password-reset/${encodeURIComponent(token)}`)
+  }
+
+  async resetPassword(token: string, password: string): Promise<{ message: string; email: string }> {
+    return this.fetch<{ message: string; email: string }>(`/v1/password-reset/${encodeURIComponent(token)}`, {
+      method: 'POST',
+      body: JSON.stringify({ password }),
+    })
+  }
 }
 
 
