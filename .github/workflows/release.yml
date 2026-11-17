@@ -1,10 +1,10 @@
 name: Release Desktop App
 
 # Each run cuts one release: it takes the next CalVer version (YY.M.X), tags
-# the commit, builds all three platforms from that tag and creates a draft
-# GitHub Release, which a person reviews and publishes. The website links to
-# releases/latest/download/<asset>, and GitHub ignores drafts for "latest", so
-# nothing reaches users until it is published.
+# the commit, builds all three platforms from that tag and publishes a GitHub
+# Release. The website and the in-app updater read
+# releases/latest/download/<asset>, so the release reaches users as soon as
+# this workflow finishes.
 #
 # The repository keeps a placeholder version; the real one exists only in the
 # tag and in the bundles (scripts/stamp_version.sh). Nothing is committed back.
@@ -553,8 +553,7 @@ jobs:
           path: bundles
           merge-multiple: true
 
-      # The in-app updater reads this from releases/latest/download/, which
-      # ignores drafts, so it goes live only when the release is published.
+      # The in-app updater reads this from releases/latest/download/.
       # Fails if any platform's bundle or signature is missing.
       - name: Write the updater manifest
         run: |
@@ -581,13 +580,13 @@ jobs:
             bundles/Nodea-*
             bundles/latest.json
 
-      - name: Create the draft release
+      - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "v$VERSION" bundles/* \
             --repo "$GITHUB_REPOSITORY" \
             --verify-tag \
-            --draft \
+            --latest \
             --title "Nodea $VERSION" \
             --generate-notes
